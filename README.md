@@ -1,70 +1,57 @@
-# Getting Started with Create React App
+# PoliBets Front End
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Description
+Brief description of the web app. Include what the app does and any important information users need to know.
 
-## Available Scripts
+## Installation and Launch Instructions
 
-In the project directory, you can run:
+Follow these steps to clone and run the web app on your local machine.
 
-### `npm start`
+### Prerequisites
+- **Node.js**: Ensure that Node.js is installed on your system. You can download it from [nodejs.org](https://nodejs.org/).
+- **Git**: Ensure Git is installed for cloning the repository. Download it from [git-scm.com](https://git-scm.com/).
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Steps to Launch
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+1. **Clone the Repository**
+   Open your terminal or command prompt and run the following command:
+   ```bash
+   git clone <https://github.com/RinnaZhang/Plan-Gazillionaire-Frontend.git>
+   ```
 
-### `npm test`
+2. **Navigate to the Project Directory**
+   Change into the project directory:
+   ```bash
+   cd <project-folder-name>
+   ```
+   Replace `<project-folder-name>` with the name of the cloned project folder.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+3. **Install Dependencies**
+   Install the project dependencies by running:
+   ```bash
+   npm install
+   ```
 
-### `npm run build`
+4. **Start the Development Server**
+   Launch the development server with:
+   ```bash
+   npm start
+   ```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+5. **Access the Web App**
+   Once the server is running, open your web browser and navigate to:
+   ```
+   http://localhost:3000
+   ```
+   The web app should now be running locally on your machine.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Troubleshooting
+- If you encounter any issues with missing dependencies or errors, make sure that Node.js and npm are up to date.
+- Run `npm audit fix` or `npm install` again if you face dependency warnings.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### Additional Notes
+- For production builds, use:
+  ```bash
+  npm run build
+  ```
+  This will create an optimized build in the `build` directory.
