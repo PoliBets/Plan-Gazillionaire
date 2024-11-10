@@ -34,11 +34,10 @@ def create_connection():
 def create_bet_description_table(connection):
     create_table_query = """
     CREATE TABLE IF NOT EXISTS bet_description (
-        bet_id INT AUTO_INCREMENT PRIMARY KEY,
+        bet_id INT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         expiration_date DATE,
         website VARCHAR(255),
-        event_type SET('election', 'fed', 'crypto', 'intl_politics', 'financial'),
         status ENUM('open', 'closed'),
         is_arbitrage ENUM('yes', 'no')
         )
@@ -54,18 +53,18 @@ def create_bet_description_table(connection):
 
 # Add a bet to the bet_description table
 def add_bet_description(connection):
+    bet_id = input("Enter bet id: ")
     name = input("Enter bet name: ")
     expiration_date = input("Enter expiration date (YYYY-MM-DD): ")  # Correct spelling here
     website = input("Enter website name: ")
-    event_type = input("Enter event_type (election/fed/crypto/intl_politics/financial): ")
     status = input("Enter bet status (open/closed): ")
     is_arbitrage = input("Enter if there were any arbitrage opportunities (yes/no): ")
 
     query = """
-    INSERT INTO bet_description (name, expiration_date, website, event_type, status, is_arbitrage)
+    INSERT INTO bet_description (bet_id, name, expiration_date, website, status, is_arbitrage)
     VALUES (%s, %s, %s, %s, %s, %s)
     """  
-    values = (name, expiration_date, website, event_type, status, is_arbitrage)
+    values = (bet_id, name, expiration_date, website, status, is_arbitrage)
 
     try:
         with connection.cursor() as cursor:
@@ -90,7 +89,6 @@ def view_bet_description(connection):
                     print(f"name: {bet[1]}")
                     print(f"expirition_date: {bet[2]}")
                     print(f"website: {bet[3]}")
-                    print(f"event_type: {bet[4]}")
                     print(f"status: ${bet[5]}")
                     print(f"is_arbitrage: ${bet[6]}")
     except Error as e:
@@ -99,7 +97,7 @@ def view_bet_description(connection):
 # update bets from bet_description table
 def update_bet_description(connection):
     bet_id = input("Enter the ID of the bet to update: ")
-    field = input("Enter the field to update (name/expirition_date/website/event_type/status/is_arbitrage): ")
+    field = input("Enter the field to update (name/expirition_date/website/status/is_arbitrage): ")
     value = input("Enter the new value: ")
     
     query = f"UPDATE bet_description SET {field} = %s WHERE bet_id = %s"
@@ -139,7 +137,7 @@ def delete_bet_description(connection):
 def create_bet_choice_table(connection):
     create_table_query = """
     CREATE TABLE IF NOT EXISTS bet_choice (
-        option_id INT AUTO_INCREMENT PRIMARY KEY,
+        option_id INT PRIMARY KEY,
         bet_id INT,
         name VARCHAR(255) NOT NULL,
         outcome ENUM('pending', 'win', 'lose') NOT NULL,
@@ -154,15 +152,16 @@ def create_bet_choice_table(connection):
         print(f"Error creating table: {e}")
 
 def add_bet_choice(connection):
+    option_id = input("Enter the option ID: ")
     bet_id = input("Enter the bet ID: ")
     name = input("Enter option name: ")
     outcome = input("Enter outcome (pending/win/lose): ")
     
     query = """
-    INSERT INTO bet_choice (bet_id, name, outcome)
-    VALUES (%s, %s, %s)
+    INSERT INTO bet_choice (option_id, bet_id, name, outcome)
+    VALUES (%s, %s, %s, %s)
     """
-    values = (bet_id, name, outcome)
+    values = (option_id, bet_id, name, outcome)
     
     try:
         with connection.cursor() as cursor:
@@ -657,6 +656,57 @@ def join_bet_data(connection):
                     print("-------------------------")
     except Error as e:
         print(f"Error retrieving data: {e}")
+
+def bet_exists(connection, bet_id):
+    """
+    Checks if an bet with the specified bet_id already exists in the database.
+    Returns:
+    - True if the bet exists, False otherwise
+    """
+    try:
+        cursor = connection.cursor()
+        query = "SELECT 1 FROM bet_description WHERE bet_id = %s LIMIT 1"
+        cursor.execute(query, (bet_id,))
+        return cursor.fetchone() is not None  # Returns True if record exists
+    except Error as e:
+        print(f"Error checking for existing event: {e}")
+        return False
+    finally:
+        cursor.close()
+
+def option_exists(connection, option_id):
+    """
+    Checks if an option with the specified option_id already exists in the database.
+    Returns:
+    - True if the option exists, False otherwise
+    """
+    try:
+        cursor = connection.cursor()
+        query = "SELECT 1 FROM bet_choice WHERE option_id = %s LIMIT 1"
+        cursor.execute(query, (option_id,))
+        return cursor.fetchone() is not None  # Returns True if record exists
+    except Error as e:
+        print(f"Error checking for existing event: {e}")
+        return False
+    finally:
+        cursor.close()
+
+def price_exists(connection, option_id):
+    """
+    Checks if an price with the specified option_id already exists in the database.
+    Returns:
+    - True if the price exists, False otherwise
+    """
+    try:
+        cursor = connection.cursor()
+        query = "SELECT 1 FROM price WHERE option_id = %s LIMIT 1"
+        cursor.execute(query, (option_id,))
+        return cursor.fetchone() is not None  # Returns True if record exists
+    except Error as e:
+        print(f"Error checking for existing event: {e}")
+        return False
+    finally:
+        cursor.close()
 
 """ *** main *** """
 
