@@ -1,21 +1,28 @@
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
+import time
 
-url = "http://localhost:9000/api/v1/bets"  # Ensure this matches the actual URL
+time.sleep(10)
+
+url = "http://localhost:9000/api/v1/bets" 
+
+session = requests.Session()
+retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+session.mount("http://", HTTPAdapter(max_retries=retries))
 
 try:
     response = requests.get(url, timeout=5)
     response.raise_for_status()
     data = response.json()
-
-    # Extract event names from the fetched data
-    events = [item["name"] for item in data]
-    print(f"Fetched {len(events)} events")  # Check if you got the expected number
+    events = [item["name"] for item in data if "name" in item]
+    print("Fetched event names:", events)  
 except requests.exceptions.RequestException as e:
     print(f"Error fetching data from the API: {e}")
-    events = []  # Fallback to an empty list if fetching fails
+    events = []
 
 # Check if events list is empty
 if not events:
@@ -30,7 +37,7 @@ else:
     print("Cosine Similarity Matrix:\n", similarity_df)
 
     # Define a threshold for similarity
-    threshold = 0.25
+    threshold = 0.8
     similar_event_pairs = []
 
     # Find and store pairs with high similarity

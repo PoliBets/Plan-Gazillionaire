@@ -4,3 +4,6 @@ SQLAlchemy
 mysql-connector-python
 python-dotenv
 requests
+urllib3
+scikit-learn
+pandas
