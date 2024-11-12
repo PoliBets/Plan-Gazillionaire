@@ -7,3 +7,5 @@ requests
 urllib3
 scikit-learn
 pandas
+tqdm
+requests_cache

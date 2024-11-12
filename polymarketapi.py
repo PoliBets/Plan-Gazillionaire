@@ -63,9 +63,9 @@ while True:
                 info_list.append(markets)
     params["offset"] += 100
 
-print(political_events) #check to make sure dict is correct
 print(count) #check number of results
 
+count2 = 1
 for event_id, info_list in political_events.items():
 
     #insert info into bet_description table
@@ -80,7 +80,8 @@ for event_id, info_list in political_events.items():
             with connection.cursor() as cursor:
                 cursor.execute(insert_query, values)
                 connection.commit()
-                print("entered bet description successfully")
+                print(f"entered bet description {count2} successfully")
+                count2 += 1
         except Error as e:
             print(f"Error inserting bet descriptions: {e}")
     else:
@@ -95,7 +96,7 @@ for event_id, info_list in political_events.items():
             with connection.cursor() as cursor:
                 cursor.execute(update_query, update_values)
                 connection.commit()
-                print("updated bet description successfully")
+                print(f"updated bet description {count2} successfully")
         except Error as e:
             print(f"Error updating bet descriptions: {e}")
     
@@ -166,10 +167,10 @@ for event_id, info_list in political_events.items():
                     with connection.cursor() as cursor:
                         cursor.execute(update_query, values)
                         connection.commit()
-                        print("entered price successfully")
+                        print("updated price successfully")
                 except Error as e:
                     print(f"Error updating price record: {e}")
             i += 1
 print("Done")
-main.connection.close()
+connection.close()
         
