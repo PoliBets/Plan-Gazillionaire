@@ -1,5 +1,6 @@
 import os
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Date, Enum, Numeric, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
@@ -20,6 +21,14 @@ Base = declarative_base()
 
 # Initialize FastAPI app
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Update this to your frontend's URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # SQLAlchemy Models
 class BetDescription(Base):
