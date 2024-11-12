@@ -1,57 +1,66 @@
-# PoliBets Front End
+# PoliBets Backend
 
 ## Description
-Brief description of the web app. Include what the app does and any important information users need to know.
+This is the backend for the Plan-Gazillionaire project, designed to provide arbitrage opportunities for betting in politics, financial markets, and other events. This backend connects to a MySQL database to manage and analyze betting data, including arbitrage opportunities, bet details, and outcomes.
 
-## Installation and Launch Instructions
+For the frontend code, please visit our frontend github repo: https://github.com/RinnaZhang/Plan-Gazillionaire-Frontend.
 
-Follow these steps to clone and run the web app on your local machine.
-
-### Prerequisites
-- **Node.js**: Ensure that Node.js is installed on your system. You can download it from [nodejs.org](https://nodejs.org/).
-- **Git**: Ensure Git is installed for cloning the repository. Download it from [git-scm.com](https://git-scm.com/).
-
-### Steps to Launch
-
+## Installation and Setup
 1. **Clone the Repository**
    Open your terminal or command prompt and run the following command:
    ```bash
-   git clone <https://github.com/RinnaZhang/Plan-Gazillionaire-Frontend.git>
+   git clone <https://github.com/phat-do-nyu/Plan-Gazillionaire>
    ```
 
 2. **Navigate to the Project Directory**
    Change into the project directory:
    ```bash
-   cd <project-folder-name>
+   cd Plan-Gazillionaire
    ```
-   Replace `<project-folder-name>` with the name of the cloned project folder.
 
-3. **Install Dependencies**
-   Install the project dependencies by running:
+3. **Create a Virtual Environment (recommended)**
    ```bash
-   npm install
+   python -m venv .venv
    ```
+   * **Windows**: `.\.venv\Scripts\activate`
+   * **Mac/Linux**: `source .venv/bin/activate`
 
-4. **Start the Development Server**
-   Launch the development server with:
+4. **Install Dependencies**
    ```bash
-   npm start
+   pip install -r requirements.txt
    ```
 
-5. **Access the Web App**
-   Once the server is running, open your web browser and navigate to:
+5. **Configure Environment Variables**
+   * Create a `.env` file in the project root with your MySQL connection details:
    ```
-   http://localhost:3000
+   DB_HOST=your_mysql_host
+   DB_USER=your_mysql_username
+   DB_PASS=your_mysql_password
+   DB_NAME=your_database_name
    ```
-   The web app should now be running locally on your machine.
+6. **Run the Application**
+   ```bash
+   python main.py
+   python app.py
+   ```
+   
+## API Endpoints
+### GET /api/v1/arbitrage
+* **Description**: Retrieves a list of all arbitrage opportunities.
+* **URL**: http://localhost:9000/api/v1/arbitrage
 
-### Troubleshooting
-- If you encounter any issues with missing dependencies or errors, make sure that Node.js and npm are up to date.
-- Run `npm audit fix` or `npm install` again if you face dependency warnings.
+### GET /api/v1/arbitrage/{arb_id}
+* **Description**: Retrieves details of a specific arbitrage opportunity by ID.
+* **URL Parameters**: arb_id (integer): ID of the arbitrage opportunity.
 
-### Additional Notes
-- For production builds, use:
-  ```bash
-  npm run build
-  ```
-  This will create an optimized build in the `build` directory.
+## Error Handling
+This backend includes basic error handling for the following cases:
+* **404 Not Found**: Returned if a specific resource (like an arbitrage opportunity) is not found.
+* **500 Internal Server Error**: Returned for unexpected errors, such as database connectivity issues.
+
+In the frontend, error messages are shown to the user whenever an error is encountered.
+
+## User Interactions in the Frontend
+This backend supports user interactions through API calls, allowing the frontend to:
+1. **Fetch Data**: On loading the page, the frontend sends a GET request to retrieve all arbitrage opportunities, displaying them in a list.
+2. **View Bet Details**: Users can click on an arbitrage opportunity to see more details, which triggers another GET request for that specific opportunity.

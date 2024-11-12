@@ -7,7 +7,12 @@ requests
 urllib3
 scikit-learn
 pandas
+<<<<<<< HEAD
 requests-cache
 tqdm
 scikit-learn
 urllib3
+=======
+tqdm
+requests_cache
+>>>>>>> 014fa33bccf0ddc543c518682876c0d71e6adcf5
