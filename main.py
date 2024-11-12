@@ -387,7 +387,7 @@ def create_arbitrage_opportunities_table(connection):
 def add_arbitrage_opportunity(connection):
     bet_id1 = input("Enter the first bet ID (bet_id1): ")
     bet_id2 = input("Enter the second bet ID (bet_id2): ")
-    timestamp = datetime.now()
+    timestamp = datetime.now().strftime('%Y-%m-%d')
     profit = input("Enter the profit (decimal value): ")
 
     query = """
