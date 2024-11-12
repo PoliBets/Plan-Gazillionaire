@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import mysql.connector
 from mysql.connector import Error
+from datetime import datetime
 
 load_dotenv()
 
@@ -386,7 +387,7 @@ def create_arbitrage_opportunities_table(connection):
 def add_arbitrage_opportunity(connection):
     bet_id1 = input("Enter the first bet ID (bet_id1): ")
     bet_id2 = input("Enter the second bet ID (bet_id2): ")
-    timestamp = input("Enter the timestamp (YYYY-MM-DD HH:MM:SS): ")
+    timestamp = datetime.now()
     profit = input("Enter the profit (decimal value): ")
 
     query = """

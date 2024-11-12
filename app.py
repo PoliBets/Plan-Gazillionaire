@@ -1,12 +1,13 @@
 import os
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Date, Enum, Numeric, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Date, Enum, Numeric, ForeignKey, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from dotenv import load_dotenv
 from typing import Optional
 from datetime import date
+from datetime import datetime
 
 # Load environment variables from .env
 load_dotenv()
@@ -35,7 +36,7 @@ class ArbitrageOpportunities(Base):
     arb_id = Column(Integer, primary_key=True, index=True)
     bet_id1 = Column(Integer, ForeignKey('bet_description.bet_id'))
     bet_id2 = Column(Integer, ForeignKey('bet_description.bet_id'))
-    timestamp = Column(Date)
+    timestamp = Column(DateTime)
     profit = Column(Numeric)
 
 # Create all tables in the database
