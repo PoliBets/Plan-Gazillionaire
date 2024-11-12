@@ -187,3 +187,85 @@ def delete_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=9000, reload=True)
+
+# Additional SQLAlchemy Model for Price Table
+class Price(Base):
+    __tablename__ = 'price'
+    option_id = Column(Integer, ForeignKey('bet_choice.option_id'), primary_key=True, index=True)
+    timestamp = Column(Date, primary_key=True)
+    volume = Column(Numeric, nullable=True)
+    yes_price = Column(Numeric, nullable=True)
+    no_price = Column(Numeric, nullable=True)
+    yes_odds = Column(Numeric, nullable=True)
+    no_odds = Column(Numeric, nullable=True)
+
+# Pydantic Models for Price Table
+class PriceBase(BaseModel):
+    option_id: int
+    timestamp: date
+    volume: Optional[float] = None
+    yes_price: Optional[float] = None
+    no_price: Optional[float] = None
+    yes_odds: Optional[float] = None
+    no_odds: Optional[float] = None
+
+class PriceCreate(PriceBase):
+    pass
+
+class PriceResponse(PriceBase):
+    class Config:
+        orm_mode = True
+
+# CRUD Operations for Price Table
+
+@app.get("/api/v1/prices", response_model=list[PriceResponse])
+def get_prices(db: Session = Depends(get_db)):
+    prices = db.query(Price).all()
+    return prices
+
+@app.get("/api/v1/prices/{option_id}/{timestamp}", response_model=PriceResponse)
+def get_price(option_id: int, timestamp: date, db: Session = Depends(get_db)):
+    price = db.query(Price).filter(Price.option_id == option_id, Price.timestamp == timestamp).first()
+    if not price:
+        raise HTTPException(status_code=404, detail="Price not found")
+    return price
+
+@app.post("/api/v1/prices", response_model=PriceResponse)
+def create_price(price: PriceCreate, db: Session = Depends(get_db)):
+    db_price = Price(
+        option_id=price.option_id,
+        timestamp=price.timestamp,
+        volume=price.volume,
+        yes_price=price.yes_price,
+        no_price=price.no_price,
+        yes_odds=price.yes_odds,
+        no_odds=price.no_odds
+    )
+    db.add(db_price)
+    db.commit()
+    db.refresh(db_price)
+    return db_price
+
+@app.put("/api/v1/prices/{option_id}/{timestamp}", response_model=PriceResponse)
+def update_price(option_id: int, timestamp: date, price: PriceCreate, db: Session = Depends(get_db)):
+    db_price = db.query(Price).filter(Price.option_id == option_id, Price.timestamp == timestamp).first()
+    if not db_price:
+        raise HTTPException(status_code=404, detail="Price not found")
+    
+    db_price.volume = price.volume
+    db_price.yes_price = price.yes_price
+    db_price.no_price = price.no_price
+    db_price.yes_odds = price.yes_odds
+    db_price.no_odds = price.no_odds
+    db.commit()
+    return db_price
+
+@app.delete("/api/v1/prices/{option_id}/{timestamp}", response_model=dict)
+def delete_price(option_id: int, timestamp: date, db: Session = Depends(get_db)):
+    db_price = db.query(Price).filter(Price.option_id == option_id, Price.timestamp == timestamp).first()
+    if not db_price:
+        raise HTTPException(status_code=404, detail="Price not found")
+    
+    db.delete(db_price)
+    db.commit()
+    return {"message": "Price deleted"}
