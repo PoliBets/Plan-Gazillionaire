@@ -799,6 +799,7 @@ def main():
             create_bet_choice_table(connection)
             create_price_table(connection)
             create_arbitrage_opportunities_table(connection)
+            create_similar_events_table(connection)
             join_bet_data(connection)
 
             # Step 3: Start the main menu for user interaction
