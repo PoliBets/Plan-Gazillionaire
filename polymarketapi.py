@@ -40,7 +40,9 @@ def getpolymarketinfo():
                     expiration_date = end_date[0]
                 if not main.bet_exists(connection, bet_id):
                     political_events.append((bet_id, title, expiration_date, "polymarket", "open", "no"))
-                    print("political events done")
+                    print("political event added")
+                else:
+                    print("no new political event")
 
                 for market in event['markets']:
                     market_id = market['id']
@@ -50,15 +52,19 @@ def getpolymarketinfo():
                     
                     if not main.option_exists(connection, market_id):
                         bet_choices.append((market_id, bet_id, question, "pending"))
-                        print("markets done")
+                        print("market added")
+                    else:
+                        print("no new market")
 
                     clean_outcomes = ast.literal_eval(market['outcomes'])
                     if 'outcomePrices' in market:
                         clean_outcomePrices = ast.literal_eval(market['outcomePrices'])
             
-                    if clean_outcomePrices:
+                    if not main.price_exists(connection, market_id) and clean_outcomePrices:
                         prices.append((market_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), volume, clean_outcomePrices[0], clean_outcomePrices[1], clean_outcomePrices[0], clean_outcomePrices[1]))
-                        print("prices done")
+                        print("price added")
+                    else:
+                        print("no new price")
 
         params["offset"] += 100
 
