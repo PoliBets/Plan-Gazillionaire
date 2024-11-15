@@ -458,7 +458,6 @@ def delete_arbitrage_opportunity(connection):
     except Error as e:
         print(f"Error deleting arbitrage opportunity: {e}")
 
-
 def main_menu(connection):
     while True:
         print("\nMain Menu:")
@@ -466,9 +465,10 @@ def main_menu(connection):
         print("2. Manage Bet Choices")
         print("3. Manage Prices")
         print("4. Manage Arbitrage Opportunities")
-        print("5. Exit")
+        print("5. Manage Similar Events")  # New option
+        print("6. Exit")
         
-        choice = input("Enter your choice (1-5): ")
+        choice = input("Enter your choice (1-6): ")
 
         if choice == '1':
             manage_bet_description(connection)
@@ -479,12 +479,88 @@ def main_menu(connection):
         elif choice == '4':
             manage_arbitrage_opportunities(connection)
         elif choice == '5':
+            manage_similar_events(connection)  # New option
+        elif choice == '6':
             break
         else:
             print("Invalid choice. Please try again.")
     
     connection.close()
     print("Connection Closed")
+
+""" *** similar_events table *** """
+
+def create_similar_events_table(connection):
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS similar_events (
+        event_id INT AUTO_INCREMENT PRIMARY KEY,
+        bet_id INT,
+        description TEXT NOT NULL,
+        similarity ENUM('Y', 'N') NOT NULL,
+        FOREIGN KEY (bet_id) REFERENCES bet_description(bet_id)
+    )
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(create_table_query)
+            connection.commit()
+            print("Table 'similar_events' created successfully")
+    except Error as e:
+        print(f"Error creating table: {e}")
+
+def add_similar_event(connection):
+    bet_id = input("Enter bet ID: ")
+    description = input("Enter event description: ")
+    similarity = input("Enter similarity (Y/N): ")
+
+    query = """
+    INSERT INTO similar_events (bet_id, description, similarity)
+    VALUES (%s, %s, %s)
+    """
+    values = (bet_id, description, similarity)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, values)
+            connection.commit()
+            print("Similar event added successfully!")
+    except Error as e:
+        print(f"Error adding similar event: {e}")
+
+def view_similar_events(connection):
+    query = "SELECT * FROM similar_events"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            results = cursor.fetchall()
+            if not results:
+                print("No similar events found in the database.")
+            else:
+                for event in results:
+                    print(f"\nEvent ID: {event[0]}")
+                    print(f"Bet ID: {event[1]}")
+                    print(f"Description: {event[2]}")
+                    print(f"Similarity: {event[3]}")
+    except Error as e:
+        print(f"Error retrieving similar events: {e}")
+
+def manage_similar_events(connection):
+    while True:
+        print("\nSimilar Events Management:")
+        print("1. Add a Similar Event")
+        print("2. View Similar Events")
+        print("3. Go Back to Main Menu")
+        
+        choice = input("Enter your choice (1-3): ")
+
+        if choice == '1':
+            add_similar_event(connection)
+        elif choice == '2':
+            view_similar_events(connection)
+        elif choice == '3':
+            break
+        else:
+            print("Invalid choice. Please try again.")
 
 """ *** sub-menu for Best Descriptions *** """
 
