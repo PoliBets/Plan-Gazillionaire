@@ -3,8 +3,56 @@ import ast
 import main
 from datetime import datetime
 from mysql.connector import Error
-#gets the information from polybets api
-#formats information into a list for database entry
+import threading
+
+# Function to process each response and add the data to shared lists
+def process_response(response, political_events, bet_choices, prices, lock):
+    # Create a new database connection for each thread
+    connection = main.create_connection()
+
+    for event in response:
+        list_tags = [tag['slug'] for tag in event['tags']]
+
+        if any("politics" in tag for tag in list_tags):
+            bet_id = event['id']
+            title = event['title']
+            if 'endDate' in event:
+                end_date = event['endDate'].split('T')
+                expiration_date = end_date[0]
+            if not main.bet_exists(connection, bet_id):
+                with lock:
+                    political_events.append((bet_id, title, expiration_date, "polymarket", "open", "no"))
+                print("political event added")
+            else:
+                print("no new political event")
+
+            for market in event['markets']:
+                market_id = market['id']
+                question = market['question']
+                if 'volume' in market:
+                    volume = market['volume']
+                
+                if not main.option_exists(connection, market_id):
+                    with lock:
+                        bet_choices.append((market_id, bet_id, question, "pending"))
+                    print("market added")
+                else:
+                    print("no new market")
+
+                clean_outcomes = ast.literal_eval(market['outcomes'])
+                if 'outcomePrices' in market:
+                    clean_outcomePrices = ast.literal_eval(market['outcomePrices'])
+            
+                if not main.price_exists(connection, market_id) and clean_outcomePrices:
+                    with lock:
+                        prices.append((market_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), volume, clean_outcomePrices[0], clean_outcomePrices[1], clean_outcomePrices[0], clean_outcomePrices[1]))
+                    print("price added")
+                else:
+                    print("no new price")
+
+    # Close the connection when the work is done
+    connection.close()
+
 
 def getpolymarketinfo():
     base_url = "https://gamma-api.polymarket.com/events"
@@ -14,11 +62,12 @@ def getpolymarketinfo():
         "offset": 0
     }
 
-    connection = main.create_connection()
-
     political_events = []
     bet_choices = []
     prices = []
+
+    lock = threading.Lock()
+    threads = []
 
     while True:
         r = requests.get(base_url, params=params)
@@ -27,48 +76,20 @@ def getpolymarketinfo():
         if not response:
             break
 
-        for event in response:
-            list_tags = [tag['slug'] for tag in event['tags']]
-    
-            if any("politics" in tag for tag in list_tags): #determines if the event is tagged politics
-        
-                #add info
-                bet_id = event['id']
-                title = event['title']
-                if 'endDate' in event:
-                    end_date = event['endDate'].split('T')
-                    expiration_date = end_date[0]
-                if not main.bet_exists(connection, bet_id):
-                    political_events.append((bet_id, title, expiration_date, "polymarket", "open", "no"))
-                    print("political event added")
-                else:
-                    print("no new political event")
-
-                for market in event['markets']:
-                    market_id = market['id']
-                    question = market['question']
-                    if 'volume' in market:
-                        volume = market['volume']
-                    
-                    if not main.option_exists(connection, market_id):
-                        bet_choices.append((market_id, bet_id, question, "pending"))
-                        print("market added")
-                    else:
-                        print("no new market")
-
-                    clean_outcomes = ast.literal_eval(market['outcomes'])
-                    if 'outcomePrices' in market:
-                        clean_outcomePrices = ast.literal_eval(market['outcomePrices'])
-            
-                    if not main.price_exists(connection, market_id) and clean_outcomePrices:
-                        prices.append((market_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), volume, clean_outcomePrices[0], clean_outcomePrices[1], clean_outcomePrices[0], clean_outcomePrices[1]))
-                        print("price added")
-                    else:
-                        print("no new price")
+        # Start a thread to process this entire response
+        thread = threading.Thread(target=process_response, args=(response, political_events, bet_choices, prices, lock))
+        thread.start()
+        threads.append(thread)
 
         params["offset"] += 100
 
-    #insert info into bet_description table
+    # Wait for all threads to finish
+    for thread in threads:
+        thread.join()
+
+    # Insert info into the database after all threads have finished
+    connection = main.create_connection()
+
     if political_events:
         insert_query = """
             INSERT INTO bet_description (bet_id, name, expiration_date, website, status, is_arbitrage)
@@ -79,8 +100,7 @@ def getpolymarketinfo():
         with connection.cursor() as cursor:
             cursor.executemany(insert_query, political_events)
         connection.commit()
-    
-        #insert into bet_choices table
+
     if bet_choices:
         insert_query = """
             INSERT INTO bet_choice (option_id, bet_id, name, outcome)
@@ -90,8 +110,6 @@ def getpolymarketinfo():
         with connection.cursor() as cursor:
             cursor.executemany(insert_query, bet_choices)
         connection.commit()
-
-        #enters prices into price table
 
     if prices:
         insert_query = """
@@ -110,5 +128,3 @@ def getpolymarketinfo():
 
 
 getpolymarketinfo()
-
-        
