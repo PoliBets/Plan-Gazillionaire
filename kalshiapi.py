@@ -20,26 +20,45 @@ def parse_date(date_str):
     print(f"Invalid date format: {date_str}")
     return None
 
+import requests_cache
+
 def fetch_kalshi_events():
     session = requests_cache.CachedSession('requests_cache')
     limit = 200
     events = []
-    
+    next_cursor = None  # For cursor-based pagination
+
     print("Fetching events from Kalshi API...")
     url = "https://trading-api.kalshi.com/trade-api/v2/events"
     headers = {"accept": "application/json"}
 
-    response = session.get(url, headers=headers, params={
-        "limit": limit,
-        "with_nested_markets": True,
-        "status": "open"
-    })
+    while True:
+        params = {
+            "limit": limit,
+            "with_nested_markets": True,
+            "status": "open",
+        }
+        if next_cursor:
+            params["cursor"] = next_cursor  # includes cursor in params
 
-    r = response.json()
-    events = r.get("events", [])
+        response = session.get(url, headers=headers, params=params)
+        response.raise_for_status() 
+        r = response.json()
+
+        # Append events to the main list
+        events.extend(r.get("events", []))
+
+        # Get the next cursor
+        next_cursor = r.get("cursor")
+        print(f"Fetched {len(r.get('events', []))} events, Total so far: {len(events)}")
+
+        # breaks if there is no cursor (last page)
+        if not next_cursor:
+            break
+
     print(f"Total events fetched: {len(events)}")
-    
     return events
+
 
 def get_max_option_id(connection):
     with connection.cursor() as cursor:
@@ -126,8 +145,8 @@ if __name__ == "__main__":
 
     if connection:
         events = fetch_kalshi_events()
-        insert_event_data(connection, events)
+        """insert_event_data(connection, events)
         connection.close()
         print("Database connection closed.")
     else:
-        print("Failed to connect to the database.")
+        print("Failed to connect to the database.")"""
