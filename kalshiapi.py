@@ -20,13 +20,11 @@ def parse_date(date_str):
     print(f"Invalid date format: {date_str}")
     return None
 
-import requests_cache
-
 def fetch_kalshi_events():
     session = requests_cache.CachedSession('requests_cache')
     limit = 200
     events = []
-    next_cursor = None  # For cursor-based pagination
+    cursor = None
 
     print("Fetching events from Kalshi API...")
     url = "https://trading-api.kalshi.com/trade-api/v2/events"
@@ -36,29 +34,31 @@ def fetch_kalshi_events():
         params = {
             "limit": limit,
             "with_nested_markets": True,
-            "status": "open",
+            "status": "open"
         }
-        if next_cursor:
-            params["cursor"] = next_cursor  # includes cursor in params
+        if cursor:
+            params["cursor"] = cursor
 
+        print(f"Requesting data with params: {params}")
         response = session.get(url, headers=headers, params=params)
-        response.raise_for_status() 
+
+        if response.status_code != 200:
+            print(f"Failed to fetch data: {response.status_code} - {response.text}")
+            break
+
         r = response.json()
+        batch = r.get("events", [])
+        events.extend(batch)
 
-        # Append events to the main list
-        events.extend(r.get("events", []))
+        print(f"Fetched {len(batch)} events in this batch (Total: {len(events)})")
 
-        # Get the next cursor
-        next_cursor = r.get("cursor")
-        print(f"Fetched {len(r.get('events', []))} events, Total so far: {len(events)}")
-
-        # breaks if there is no cursor (last page)
-        if not next_cursor:
+        cursor = r.get("cursor")
+        if not cursor:
+            print("No more data to fetch. Pagination complete.")
             break
 
     print(f"Total events fetched: {len(events)}")
     return events
-
 
 def get_max_option_id(connection):
     with connection.cursor() as cursor:
@@ -145,8 +145,8 @@ if __name__ == "__main__":
 
     if connection:
         events = fetch_kalshi_events()
-        """insert_event_data(connection, events)
+        insert_event_data(connection, events)
         connection.close()
         print("Database connection closed.")
     else:
-        print("Failed to connect to the database.")"""
+        print("Failed to connect to the database.")
