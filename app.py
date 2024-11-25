@@ -148,7 +148,18 @@ class ArbitrageOpportunitiesResponse(ArbitrageOpportunitiesBase):
 @app.get("/api/v1/arbitrage", response_model=list[ArbitrageOpportunitiesResponse])
 def get_arbitrage_opportunities(db: Session = Depends(get_db)):
     opportunities = db.query(ArbitrageOpportunities).all()
-    return opportunities
+    # Convert datetime to date in the response, handle None for timestamp
+    results = [
+        {
+            "arb_id": opp.arb_id,
+            "bet_id1": opp.bet_id1,
+            "bet_id2": opp.bet_id2,
+            "timestamp": opp.timestamp.date() if opp.timestamp else None,  # Handle None
+            "profit": float(opp.profit) if opp.profit is not None else None,
+        }
+        for opp in opportunities
+    ]
+    return results
 
 @app.get("/api/v1/arbitrage/{arb_id}", response_model=ArbitrageOpportunitiesResponse)
 def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
@@ -159,16 +170,22 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
 
 @app.post("/api/v1/arbitrage", response_model=ArbitrageOpportunitiesResponse)
 def create_arbitrage_opportunity(opportunity: ArbitrageOpportunitiesCreate, db: Session = Depends(get_db)):
-    db_opportunity = ArbitrageOpportunities(
-        bet_id1=opportunity.bet_id1,
-        bet_id2=opportunity.bet_id2,
-        timestamp=opportunity.timestamp,
-        profit=opportunity.profit
-    )
-    db.add(db_opportunity)
-    db.commit()
-    db.refresh(db_opportunity)
-    return db_opportunity
+    print(f"Incoming request to create arbitrage opportunity: {opportunity.dict()}")
+    try:
+        db_opportunity = ArbitrageOpportunities(
+            bet_id1=opportunity.bet_id1,
+            bet_id2=opportunity.bet_id2,
+            timestamp=opportunity.timestamp,
+            profit=opportunity.profit
+        )
+        db.add(db_opportunity)
+        db.commit()
+        db.refresh(db_opportunity)
+        print(f"Arbitrage opportunity successfully created with ID: {db_opportunity.arb_id}")
+        return db_opportunity
+    except Exception as e:
+        print(f"Failed to create arbitrage opportunity: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.put("/api/v1/arbitrage/{arb_id}", response_model=ArbitrageOpportunitiesResponse)
 def update_arbitrage_opportunity(arb_id: int, opportunity: ArbitrageOpportunitiesCreate, db: Session = Depends(get_db)):

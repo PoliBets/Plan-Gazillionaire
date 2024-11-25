@@ -4,12 +4,12 @@ from typing import Optional, Tuple
 from requests import Session
 from requests.packages.urllib3.util.retry import Retry
 from app import SessionLocal
-from similar_events import similar_event_ids  # Import the similar event pairs
 from app import BetDescription, Price # Import BetDescription and Price tables from API
 import mysql.connector
 from mysql.connector import Error
 import os
 from dotenv import load_dotenv
+from datetime import datetime
 
 # API endpoint
 API_BASE_URL = "http://localhost:9000/api/v1/bets"
@@ -88,29 +88,83 @@ def get_prices_by_bet_id(bet_id: int) -> Optional[Tuple[float, float]]:
         connection.close()
         print("Database connection closed.")
 
-ARBITRAGE_BASE_URL = "http://127.0.0.1:9000/api/v1/arbitrage"
-def post_arbitrage_opportunity(bet_id1: int, bet_id2: int, profit: float):
-    data = {
-        "bet_id1": bet_id1,
-        "bet_id2": bet_id2,
-        "timestamp": None,  # or set to the current datetime if required
-        "profit": float(profit)
-    }
+# Update similar_event_ids to fetch from similar_events table in the database
+def get_similar_event_ids():
+    connection = create_connection()
+    if connection is None:
+        print("Failed to connect to the database.")
+        return []
+    
+    query = """
+    SELECT 
+        bet_id_1, 
+        bet_id_2
+    FROM 
+        similar_events
+    """
+    
     try:
-        response = requests.post(ARBITRAGE_BASE_URL, json=data)
-        response.raise_for_status()  # Raises an error for non-2xx responses
-        print(f"Successfully added arbitrage opportunity for bet IDs {bet_id1} and {bet_id2}")
-    except requests.RequestException as e:
-        print(f"Failed to add arbitrage opportunity for bet IDs {bet_id1} and {bet_id2}: {e}")
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            result = cursor.fetchall()
+            
+            if not result:
+                print("No similar events found.")
+                return []
+            
+            similar_event_ids = [(row[0], row[1]) for row in result]
+            print(f"Fetched similar event pairs: {similar_event_ids}")
+            
+            return similar_event_ids
+    
+    except mysql.connector.Error as e:
+        print(f"Error fetching similar event pairs: {e}")
+        return []
+    
+    finally:
+        connection.close()
+        print("Database connection closed.")
+
+# Insert arbitrage opportunity into the database
+def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profit: float):
+    """
+    Inserts an arbitrage opportunity into the arbitrage_opportunities table.
+    """
+    query = """
+    INSERT INTO arbitrage_opportunities (bet_id1, bet_id2, timestamp, profit)
+    VALUES (%s, %s, %s, %s)
+    """
+    timestamp = datetime.now()
+    values = (bet_id_1, bet_id_2, timestamp, profit)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, values)
+            connection.commit()
+            print(f"Arbitrage opportunity added with ID: {cursor.lastrowid}")
+    except Error as e:
+        print(f"Error adding arbitrage opportunity: {e}")
+
+ARBITRAGE_BASE_URL = "http://localhost:9000/api/v1/arbitrage"
+def post_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profit: float):
+    """
+    Temporarily skip API calls and insert directly into the database.
+    """
+    print(f"Skipping API call and inserting arbitrage opportunity for bet IDs {bet_id_1} and {bet_id_2} directly into the database.")
+    insert_arbitrage_opportunity(connection, bet_id_1, bet_id_2, profit)
 
 # Calculate cross-market arbitrage for a pair of bet IDs
-def calculate_cross_market_arbitrage(bet_id1, bet_id2):
-    price_yes_market1, price_no_market1 = get_prices_by_bet_id(bet_id1)
-    price_yes_market2, price_no_market2 = get_prices_by_bet_id(bet_id2)
-    
+def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, connection):
+    """
+    Calculate arbitrage opportunities for a pair of bet IDs.
+    Posts and inserts profitable opportunities into the database.
+    """
+    price_yes_market1, price_no_market1 = get_prices_by_bet_id(bet_id_1)
+    price_yes_market2, price_no_market2 = get_prices_by_bet_id(bet_id_2)
+
     if None in [price_yes_market1, price_no_market1, price_yes_market2, price_no_market2]:
-        print(f"Prices not available for bet IDs {bet_id1} or {bet_id2}. Skipping arbitrage calculation.")
-        return None
+        print(f"Prices not available for bet IDs {bet_id_1} or {bet_id_2}. Skipping arbitrage calculation.")
+        return
 
     # Scenario 1: "Yes" on Market 1, "No" on Market 2
     total_price_scenario_1 = price_yes_market1 + price_no_market2
@@ -120,43 +174,30 @@ def calculate_cross_market_arbitrage(bet_id1, bet_id2):
     total_price_scenario_2 = price_no_market1 + price_yes_market2
     profit_scenario_2 = 100 - total_price_scenario_2 if total_price_scenario_2 < 100 else 0
 
-    if profit_scenario_1 > 0 or profit_scenario_2 > 0:
+    if profit_scenario_1 > 0:
+        print(f"Found arbitrage opportunity (Scenario 1): {profit_scenario_1} profit")
+        post_arbitrage_opportunity(connection, bet_id_1, bet_id_2, profit_scenario_1)
 
-        # Determine which scenario has a profitable arbitrage opportunity and add to the API
-        if profit_scenario_1 > 0:
-            post_arbitrage_opportunity(bet_id1, bet_id2, profit_scenario_1)
-        if profit_scenario_2 > 0:
-            post_arbitrage_opportunity(bet_id2, bet_id1, profit_scenario_2)
-        
-        return {
-            "arbitrage": True,
-            "bet_ids": (bet_id1, bet_id2),
-            "scenario_1": {
-                "bet_on": ("Yes on Market 1", "No on Market 2"),
-                "total_investment": total_price_scenario_1,
-                "profit_per_contract": profit_scenario_1
-            },
-            "scenario_2": {
-                "bet_on": ("No on Market 1", "Yes on Market 2"),
-                "total_investment": total_price_scenario_2,
-                "profit_per_contract": profit_scenario_2
-            }
-        }
-    else:
-        return {
-            "arbitrage": False,
-            "bet_ids": (bet_id1, bet_id2),
-            "message": "No arbitrage opportunity available in either scenario."
-        }
+    if profit_scenario_2 > 0:
+        print(f"Found arbitrage opportunity (Scenario 2): {profit_scenario_2} profit")
+        post_arbitrage_opportunity(connection, bet_id_2, bet_id_1, profit_scenario_2)
 
 # Main script
 if __name__ == "__main__":
-    arbitrage_results = []
-    for bet_id1, bet_id2, similarity_score in similar_event_ids:
-        result = calculate_cross_market_arbitrage(bet_id1, bet_id2)
+    connection = create_connection()  # Establish the database connection
+
+    if connection is None:
+        print("Failed to connect to the database. Exiting...")
+        exit()
+
+    arbitrage_results = []  # Initialize arbitrage_results here
+
+    similar_event_ids = get_similar_event_ids()
+    for bet_id_1, bet_id_2 in similar_event_ids:
+        result = calculate_cross_market_arbitrage(bet_id_1, bet_id_2, connection)
         if result:
             arbitrage_results.append(result)
-    
+
     # Display results
     for result in arbitrage_results:
         if result["arbitrage"]:
@@ -172,109 +213,4 @@ if __name__ == "__main__":
         else:
             print(f"No arbitrage for bets {result['bet_ids']}. {result['message']}")
 
-
-
-"""
-def get_bet_prices(bet_id: int) -> Optional[Tuple[float, float]]:
-    # Start a new session using SessionLocal
-    db: Session = SessionLocal()
-    try:
-        # Fetch the most recent price entry for the given bet_id
-        recent_price = db.query(Price).filter(Price.option_id == bet_id).order_by(Price.timestamp.desc()).first()
-        
-        if not recent_price:
-            print(f"No price data found for bet_id {bet_id}")
-            return None, None
-
-        # Extract price values (adjust field names based on your actual model)
-        price_yes = recent_price.yes_price
-        price_no = recent_price.no_price
-        
-        print(f"Fetched prices for bet_id {bet_id}: price_yes = {price_yes}, price_no = {price_no}")
-        
-        return price_yes, price_no
-    
-    except Exception as e:
-        print(f"Error fetching prices for bet_id {bet_id}: {e}")
-        return None, None
-    finally:
-        # Ensure the session is closed after operation
-        db.close()
-"""
-
-"""
-# Debug code ==> DELETE when done
-def get_bet_prices(bet_id: int) -> Optional[Tuple[float, float]]:
-    # Start a new session using SessionLocal
-    db: Session = SessionLocal()
-    try:
-        # Fetch the most recent price entry for the given bet_id
-        recent_price = db.query(Price).filter(Price.option_id == bet_id).order_by(Price.timestamp.desc()).first()
-        
-        if not recent_price:
-            print(f"No price data found for bet_id {bet_id}")
-            
-            # Optional: Attempt API call for debugging
-            print("Attempting to fetch data from API for debugging...")
-            response = requests.get(f"{API_BASE_URL}/{bet_id}", timeout=5)
-            print(f"Status Code: {response.status_code}")
-            print(f"Response Content: {response.text}")
-            
-            try:
-                response.raise_for_status()
-                bet_data = response.json()
-                print(f"Fetched JSON data for bet_id {bet_id}: {bet_data}")
-                return None, None  # Replace with actual processing if you want to handle the API response
-            except requests.RequestException as e:
-                print(f"Error with API request for bet_id {bet_id}: {e}")
-                return None, None
-            
-        # Print the full database record for inspection
-        print(f"Full data retrieved from database for bet_id {bet_id}: {recent_price}")
-        
-        # Extract price values
-        price_yes = recent_price.yes_price
-        price_no = recent_price.no_price
-        print(f"Fetched prices for bet_id {bet_id}: price_yes = {price_yes}, price_no = {price_no}")
-        
-        return price_yes, price_no
-"""
-
-"""
-def get_prices_by_bet_id(db: Session, bet_id: int) -> Optional[Tuple[float, float]]:
-    try:
-        # Perform a join to retrieve the most recent price for a specific bet_id
-        recent_price = (
-            db.query(Price)
-            .join(BetChoice, Price.option_id == BetChoice.option_id)
-            .filter(BetChoice.bet_id == bet_id)
-            .order_by(Price.timestamp.desc())
-            .first()
-        )
-        
-        if not recent_price:
-            print(f"No price data found for bet_id {bet_id}")
-            return None, None
-        
-        # Print the full database record for inspection
-        print(f"Full data retrieved from database for bet_id {bet_id}: {recent_price}")
-        
-        # Extract price values
-        price_yes = recent_price.yes_price
-        price_no = recent_price.no_price
-        print(f"Fetched prices for bet_id {bet_id}: price_yes = {price_yes}, price_no = {price_no}")
-        
-        return price_yes, price_no
-    
-    except Exception as e:
-        print(f"Error fetching prices for bet_id {bet_id}: {e}")
-        return None, None
-
-    
-    except Exception as e:
-        print(f"Error fetching prices for bet_id {bet_id}: {e}")
-        return None, None
-    finally:
-        # Ensure the session is closed after operation
-        db.close()
-"""
+    connection.close()  # Close the database connection

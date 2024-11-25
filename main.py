@@ -366,12 +366,12 @@ def create_arbitrage_opportunities_table(connection):
     create_table_query = """
     CREATE TABLE IF NOT EXISTS arbitrage_opportunities (
         arb_id INT AUTO_INCREMENT PRIMARY KEY,
-        bet_id1 INT NOT NULL,
-        bet_id2 INT NOT NULL,
+        bet_id_1 INT NOT NULL,
+        bet_id_2 INT NOT NULL,
         timestamp DATETIME,
         profit DECIMAL(10, 2),
-        FOREIGN KEY (bet_id1) REFERENCES bet_description(bet_id),
-        FOREIGN KEY (bet_id2) REFERENCES bet_description(bet_id)
+        FOREIGN KEY (bet_id_1) REFERENCES bet_description(bet_id),
+        FOREIGN KEY (bet_id_2) REFERENCES bet_description(bet_id)
     )
     """
     try:
@@ -383,16 +383,16 @@ def create_arbitrage_opportunities_table(connection):
         print(f"Error creating table: {e}")
 
 def add_arbitrage_opportunity(connection):
-    bet_id1 = input("Enter the first bet ID (bet_id1): ")
-    bet_id2 = input("Enter the second bet ID (bet_id2): ")
+    bet_id_1 = input("Enter the first bet ID (bet_id_1): ")
+    bet_id_2 = input("Enter the second bet ID (bet_id_2): ")
     timestamp = datetime.now().strftime('%Y-%m-%d')
     profit = input("Enter the profit (decimal value): ")
 
     query = """
-    INSERT INTO arbitrage_opportunities (bet_id1, bet_id2, timestamp, profit)
+    INSERT INTO arbitrage_opportunities (bet_id_1, bet_id_2, timestamp, profit)
     VALUES (%s, %s, %s, %s)
     """
-    values = (bet_id1, bet_id2, timestamp, profit)
+    values = (bet_id_1, bet_id_2, timestamp, profit)
 
     try:
         with connection.cursor() as cursor:
@@ -422,7 +422,7 @@ def view_arbitrage_opportunities(connection):
 
 def update_arbitrage_opportunity(connection):
     arb_id = input("Enter the ID of the arbitrage opportunity to update: ")
-    field = input("Enter the field to update (bet_id1/bet_id2/timestamp/profit): ")
+    field = input("Enter the field to update (bet_id_1/bet_id_2/timestamp/profit): ")
     value = input("Enter the new value: ")
 
     query = f"UPDATE arbitrage_opportunities SET {field} = %s WHERE arb_id = %s"
@@ -728,8 +728,8 @@ def join_bet_data(connection):
         p.yes_odds, 
         p.no_odds, 
         ao.arb_id, 
-        ao.bet_id1, 
-        ao.bet_id2, 
+        ao.bet_id_1, 
+        ao.bet_id_2, 
         ao.timestamp AS arbitrage_timestamp, 
         ao.profit
     FROM 
@@ -739,7 +739,7 @@ def join_bet_data(connection):
     JOIN 
         price p ON bc.option_id = p.option_id
     LEFT JOIN 
-        arbitrage_opportunities ao ON bd.bet_id = ao.bet_id1 OR bd.bet_id = ao.bet_id2;
+        arbitrage_opportunities ao ON bd.bet_id = ao.bet_id_1 OR bd.bet_id = ao.bet_id_2;
     """
     
     try:
