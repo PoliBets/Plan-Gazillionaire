@@ -360,9 +360,7 @@ def delete_price(connection):
     except Error as e:
         print(f"Error deleting price: {e}")
 
-
 """ *** arbitrage_opportunities table *** """
-
 
 def create_arbitrage_opportunities_table(connection):
     create_table_query = """
@@ -490,42 +488,70 @@ def main_menu(connection):
 
 """ *** similar_events table *** """
 
+def drop_similar_events_table(connection):
+    query = "DROP TABLE IF EXISTS similar_events"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            connection.commit()
+            print("Table 'similar_events' dropped successfully!")
+    except Error as e:
+        print(f"Error dropping table: {e}")
+
 def create_similar_events_table(connection):
     create_table_query = """
     CREATE TABLE IF NOT EXISTS similar_events (
         event_id INT AUTO_INCREMENT PRIMARY KEY,
-        bet_id INT,
-        description TEXT NOT NULL,
-        similarity ENUM('Y', 'N') NOT NULL,
-        FOREIGN KEY (bet_id) REFERENCES bet_description(bet_id)
+        bet_id_1 INT NOT NULL,
+        description_1 TEXT NOT NULL,
+        website_1 VARCHAR(255) NOT NULL,
+        bet_id_2 INT NOT NULL,
+        description_2 TEXT NOT NULL,
+        website_2 VARCHAR(255) NOT NULL,
+        FOREIGN KEY (bet_id_1) REFERENCES bet_description(bet_id),
+        FOREIGN KEY (bet_id_2) REFERENCES bet_description(bet_id)
     )
     """
     try:
         with connection.cursor() as cursor:
             cursor.execute(create_table_query)
             connection.commit()
-            print("Table 'similar_events' created successfully")
+            print("Table 'similar_events' created successfully with updated schema!")
     except Error as e:
-        print(f"Error creating table: {e}")
+        print(f"Error creating table 'similar_events': {e}")
 
 def add_similar_event(connection):
-    bet_id = input("Enter bet ID: ")
-    description = input("Enter event description: ")
-    similarity = input("Enter similarity (Y/N): ")
+    print("\nEnter details for the first event in the pair:")
+    bet_id_1 = input("Enter Bet ID 1: ").strip()
+    description_1 = input("Enter Description 1: ").strip()
+    website_1 = input("Enter Website for Bet 1 (e.g., Polymarket): ").strip()
+    
+    print("\nEnter details for the second event in the pair:")
+    bet_id_2 = input("Enter Bet ID 2: ").strip()
+    description_2 = input("Enter Description 2: ").strip()
+    website_2 = input("Enter Website for Bet 2 (e.g., Kalshi): ").strip()
+
+    # Validate input
+    if not all([bet_id_1, description_1, website_1, bet_id_2, description_2, website_2]):
+        print("All fields are required. Please try again.")
+        return
+    if not (bet_id_1.isdigit() and bet_id_2.isdigit()):
+        print("Bet IDs must be numeric. Please try again.")
+        return
 
     query = """
-    INSERT INTO similar_events (bet_id, description, similarity)
-    VALUES (%s, %s, %s)
+    INSERT INTO similar_events (bet_id_1, description_1, website_1, bet_id_2, description_2, website_2)
+    VALUES (%s, %s, %s, %s, %s, %s)
     """
-    values = (bet_id, description, similarity)
+    values = (bet_id_1, description_1, website_1, bet_id_2, description_2, website_2)
 
     try:
         with connection.cursor() as cursor:
             cursor.execute(query, values)
             connection.commit()
-            print("Similar event added successfully!")
+            print("Similar event pair added successfully!")
     except Error as e:
-        print(f"Error adding similar event: {e}")
+        print(f"Error adding similar event pair: {e}")
 
 def view_similar_events(connection):
     query = "SELECT * FROM similar_events"
@@ -534,33 +560,59 @@ def view_similar_events(connection):
             cursor.execute(query)
             results = cursor.fetchall()
             if not results:
-                print("No similar events found in the database.")
+                print("No similar event pairs found in the database.")
             else:
                 for event in results:
                     print(f"\nEvent ID: {event[0]}")
-                    print(f"Bet ID: {event[1]}")
-                    print(f"Description: {event[2]}")
-                    print(f"Similarity: {event[3]}")
+                    print(f"Bet ID 1: {event[1]}")
+                    print(f"Description 1: {event[2]}")
+                    print(f"Website 1: {event[3]}")
+                    print(f"Bet ID 2: {event[4]}")
+                    print(f"Description 2: {event[5]}")
+                    print(f"Website 2: {event[6]}")
     except Error as e:
         print(f"Error retrieving similar events: {e}")
+
+def delete_similar_event(connection):
+    event_id = input("\nEnter the Event ID of the similar event pair to delete: ").strip()
+
+    # Validate input
+    if not event_id.isdigit():
+        print("Event ID must be numeric. Please try again.")
+        return
+
+    query = "DELETE FROM similar_events WHERE event_id = %s"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (event_id,))
+            connection.commit()
+            if cursor.rowcount > 0:
+                print(f"Similar event pair with Event ID {event_id} deleted successfully!")
+            else:
+                print(f"No similar event pair found with Event ID {event_id}.")
+    except Error as e:
+        print(f"Error deleting similar event pair: {e}")
 
 def manage_similar_events(connection):
     while True:
         print("\nSimilar Events Management:")
-        print("1. Add a Similar Event")
-        print("2. View Similar Events")
-        print("3. Go Back to Main Menu")
+        print("1. Add a Similar Event Pair")
+        print("2. View Similar Event Pairs")
+        print("3. Delete a Similar Event Pair")
+        print("4. Go Back to Main Menu")
         
-        choice = input("Enter your choice (1-3): ")
+        choice = input("Enter your choice (1-4): ").strip()
 
         if choice == '1':
             add_similar_event(connection)
         elif choice == '2':
             view_similar_events(connection)
         elif choice == '3':
+            delete_similar_event(connection)
+        elif choice == '4':
             break
         else:
-            print("Invalid choice. Please try again.")
+            print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
 """ *** sub-menu for Best Descriptions *** """
 
@@ -794,7 +846,8 @@ def main():
         print("Error: Could not establish a database connection.")
     else:
         try:
-            # Step 1: Create necessary tables (assuming these functions are already defined)
+            drop_similar_events_table(connection)
+
             create_bet_description_table(connection)
             create_bet_choice_table(connection)
             create_price_table(connection)
@@ -802,11 +855,9 @@ def main():
             create_similar_events_table(connection)
             join_bet_data(connection)
 
-            # Step 3: Start the main menu for user interaction
             main_menu(connection)
 
         finally:
-            # Step 3: Close the connection
             connection.close()
             print("Database connection closed.")
 
