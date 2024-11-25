@@ -24,10 +24,10 @@ def fetch_kalshi_events():
     session = requests_cache.CachedSession('requests_cache')
     limit = 200
     events = []
-    cursor = None
+    cursor = None 
 
     print("Fetching events from Kalshi API...")
-    url = "https://trading-api.kalshi.com/trade-api/v2/events"
+    url = "https://api.elections.kalshi.com/trade-api/v2/events"
     headers = {"accept": "application/json"}
 
     while True:
