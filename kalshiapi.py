@@ -50,7 +50,7 @@ def fetch_kalshi_events():
         batch = r.get("events", [])
         
         # Filter only Political events
-        political_events = [event for event in batch if event.get("category") == "Politics"]
+        political_events = [event for event in batch if event.get("category") == "Politics" or event.get("category") == "World" or event.get("category") == "Economics"]
         events.extend(political_events)
 
         print(f"Fetched {len(political_events)} political events in this batch (Total: {len(events)})")
