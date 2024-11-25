@@ -26,10 +26,10 @@ load_dotenv()
 def create_connection():
     connection = None
     try:
-        print(f"Attempting to connect to:")
-        print(f"Host: {os.getenv('DB_HOST')}")
-        print(f"User: {os.getenv('DB_USER')}")
-        print(f"Database: {os.getenv('DB_NAME')}")
+        #print(f"Attempting to connect to:")
+        #print(f"Host: {os.getenv('DB_HOST')}")
+        #print(f"User: {os.getenv('DB_USER')}")
+        #print(f"Database: {os.getenv('DB_NAME')}")
         
         connection = mysql.connector.connect(
             host=os.getenv('DB_HOST'),
@@ -166,6 +166,10 @@ def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, connection):
         print(f"Prices not available for bet IDs {bet_id_1} or {bet_id_2}. Skipping arbitrage calculation.")
         return
 
+    # Fetch bet names
+    bet_name_1 = get_bet_name_by_id(bet_id_1)
+    bet_name_2 = get_bet_name_by_id(bet_id_2)
+
     # Scenario 1: "Yes" on Market 1, "No" on Market 2
     total_price_scenario_1 = price_yes_market1 + price_no_market2
     profit_scenario_1 = 100 - total_price_scenario_1 if total_price_scenario_1 < 100 else 0
@@ -176,12 +180,48 @@ def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, connection):
 
     if profit_scenario_1 > 0:
         print(f"Found arbitrage opportunity (Scenario 1): {profit_scenario_1} profit")
+        print(f"  Bet 1: {bet_name_1} (ID: {bet_id_1}), Bet 2: {bet_name_2} (ID: {bet_id_2})")
         post_arbitrage_opportunity(connection, bet_id_1, bet_id_2, profit_scenario_1)
 
     if profit_scenario_2 > 0:
         print(f"Found arbitrage opportunity (Scenario 2): {profit_scenario_2} profit")
+        print(f"  Bet 1: {bet_name_1} (ID: {bet_id_1}), Bet 2: {bet_name_2} (ID: {bet_id_2})")
         post_arbitrage_opportunity(connection, bet_id_2, bet_id_1, profit_scenario_2)
 
+# Function to get bet_description from bet_id
+def get_bet_name_by_id(bet_id: int) -> Optional[str]:
+    """
+    Fetches the name of the bet directly from the bet_description table.
+    """
+    connection = create_connection()
+    if connection is None:
+        print("Failed to connect to the database.")
+        return None
+
+    query = """
+    SELECT name
+    FROM bet_description
+    WHERE bet_id = %s
+    """
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (bet_id,))
+            result = cursor.fetchone()
+            if result:
+                return result[0]  # Return the name
+            else:
+                print(f"No bet name found for bet_id {bet_id}")
+                return None
+    except mysql.connector.Error as e:
+        print(f"Error fetching bet name for bet_id {bet_id}: {e}")
+        return None
+    finally:
+        if connection.is_connected():
+            connection.close()
+
+
+"""
 # Main script
 if __name__ == "__main__":
     connection = create_connection()  # Establish the database connection
@@ -214,3 +254,20 @@ if __name__ == "__main__":
             print(f"No arbitrage for bets {result['bet_ids']}. {result['message']}")
 
     connection.close()  # Close the database connection
+"""
+
+if __name__ == "__main__":
+    connection = create_connection()  # Establish the database connection
+
+    if connection is None:
+        print("Failed to connect to the database. Exiting...")
+        exit()
+
+    arbitrage_results = []  # Initialize arbitrage_results here
+
+    similar_event_ids = get_similar_event_ids()
+    for bet_id_1, bet_id_2 in similar_event_ids:
+        calculate_cross_market_arbitrage(bet_id_1, bet_id_2, connection)
+
+    connection.close()  # Close the database connection
+
