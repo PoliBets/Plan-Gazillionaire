@@ -488,16 +488,6 @@ def main_menu(connection):
 
 """ *** similar_events table *** """
 
-def drop_similar_events_table(connection):
-    query = "DROP TABLE IF EXISTS similar_events"
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query)
-            connection.commit()
-            print("Table 'similar_events' dropped successfully!")
-    except Error as e:
-        print(f"Error dropping table: {e}")
-
 def create_similar_events_table(connection):
     create_table_query = """
     CREATE TABLE IF NOT EXISTS similar_events (
@@ -846,8 +836,6 @@ def main():
         print("Error: Could not establish a database connection.")
     else:
         try:
-            drop_similar_events_table(connection)
-
             create_bet_description_table(connection)
             create_bet_choice_table(connection)
             create_price_table(connection)
