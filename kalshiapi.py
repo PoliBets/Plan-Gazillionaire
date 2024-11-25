@@ -48,16 +48,19 @@ def fetch_kalshi_events():
 
         r = response.json()
         batch = r.get("events", [])
-        events.extend(batch)
+        
+        # Filter only Political events
+        political_events = [event for event in batch if event.get("category") == "Politics"]
+        events.extend(political_events)
 
-        print(f"Fetched {len(batch)} events in this batch (Total: {len(events)})")
+        print(f"Fetched {len(political_events)} political events in this batch (Total: {len(events)})")
 
         cursor = r.get("cursor")
         if not cursor:
             print("No more data to fetch. Pagination complete.")
             break
 
-    print(f"Total events fetched: {len(events)}")
+    print(f"Total political events fetched: {len(events)}")
     return events
 
 def get_max_option_id(connection):
