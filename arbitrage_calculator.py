@@ -140,11 +140,30 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
     except Error as e:
         print(f"Error adding arbitrage opportunity: {e}")
 
+
 # Calculate cross-market arbitrage
-def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, website_1, website_2, connection):
+def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, event_1_details, event_2_details, connection):
     """
     Calculate arbitrage opportunities for a pair of bet IDs, considering the website.
     """
+    # Fetch event details for both bets
+    event_1_details = get_bet_description(bet_id_1, connection)
+    event_2_details = get_bet_description(bet_id_2, connection)
+
+    if not event_1_details or not event_2_details:
+        print(f"Missing details for bets {bet_id_1} or {bet_id_2}. Skipping arbitrage calculation.")
+        return
+
+    # Ensure the events are on different platforms
+    if event_1_details["website"] == event_2_details["website"]:
+        print(f"Skipping arbitrage calculation: Both bets are on the same platform ({event_1_details['website']}).")
+        return
+    
+    # Ensure the events are on different platforms
+    if event_1_details["website"] == event_2_details["website"]:
+        print(f"Skipping arbitrage calculation: Both bets are on the same platform ({event_1_details['website']}).")
+        return
+
     # Fetch raw prices for both bet IDs
     price_yes_market1, price_no_market1 = get_prices_by_bet_id(bet_id_1)
     price_yes_market2, price_no_market2 = get_prices_by_bet_id(bet_id_2)
@@ -154,34 +173,40 @@ def calculate_cross_market_arbitrage(bet_id_1, bet_id_2, website_1, website_2, c
         return
 
     # Adjust prices based on website
-    if website_1.lower() == "polymarket":
+    if event_1_details["website"].lower() == "polymarket":
         price_yes_market1 *= 100
         price_no_market1 *= 100
-    
-    if website_2.lower() == "polymarket":
+
+    if event_2_details["website"].lower() == "polymarket":
         price_yes_market2 *= 100
         price_no_market2 *= 100
 
-    print(f"Adjusted prices for bet_id_1 ({bet_id_1}): price_yes = {price_yes_market1}, price_no = {price_no_market1}")
-    print(f"Adjusted prices for bet_id_2 ({bet_id_2}): price_yes = {price_yes_market2}, price_no = {price_no_market2}")
+    print(f"Adjusted prices for bet_id_1 ({bet_id_1}, {event_1_details}): price_yes = {price_yes_market1}, price_no = {price_no_market1}")
+    print(f"Adjusted prices for bet_id_2 ({bet_id_2}, {event_2_details}): price_yes = {price_yes_market2}, price_no = {price_no_market2}")
 
-    # Scenario 1: "Yes" on Market 1, "No" on Market 2
-    total_price_scenario_1 = price_yes_market1 + price_no_market2
-    profit_scenario_1 = 100 - total_price_scenario_1 if total_price_scenario_1 < 100 else 0
+    # Calculate arbitrage for both cases and pick the best option
+    scenario_1_cost = price_yes_market1 + price_no_market2
+    scenario_2_cost = price_no_market1 + price_yes_market2
 
-    # Scenario 2: "No" on Market 1, "Yes" on Market 2
-    total_price_scenario_2 = price_no_market1 + price_yes_market2
-    profit_scenario_2 = 100 - total_price_scenario_2 if total_price_scenario_2 < 100 else 0
+    # Determine which scenario is profitable
+    if scenario_1_cost < 100 or scenario_2_cost < 100:
+        if scenario_1_cost < scenario_2_cost:
+            profit = 100 - scenario_1_cost
+            bet_type_1, bet_type_2 = "YES", "NO"
+            market_bet_1, market_bet_2 = bet_id_1, bet_id_2
+        else:
+            profit = 100 - scenario_2_cost
+            bet_type_1, bet_type_2 = "NO", "YES"
+            market_bet_1, market_bet_2 = bet_id_1, bet_id_2
 
-    if profit_scenario_1 > 0:
-        print(f"Found arbitrage opportunity (Scenario 1): {profit_scenario_1} profit")
-        insert_arbitrage_opportunity(connection, bet_id_1, bet_id_2, profit_scenario_1)
+        print(f"Arbitrage Opportunity: Bet {bet_type_1} on {market_bet_1} ({event_1_details}), "
+              f"Bet {bet_type_2} on {market_bet_2} ({event_2_details}). Profit = {profit}")
+        insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit)
+    else:
+        print("No arbitrage opportunity found.")
 
-    if profit_scenario_2 > 0:
-        print(f"Found arbitrage opportunity (Scenario 2): {profit_scenario_2} profit")
-        insert_arbitrage_opportunity(connection, bet_id_2, bet_id_1, profit_scenario_2)
    
-# Fetch similar event IDs along with their websites
+# Helper - Fetch similar event IDs along with their websites
 def get_similar_event_ids_with_websites():
     connection = create_connection()
     if connection is None:
@@ -219,18 +244,63 @@ def get_similar_event_ids_with_websites():
         connection.close()
         print("Database connection closed.")
 
+# Helper - Fetch event details by bet_id
+def get_bet_description(bet_id: int, connection):
+    """
+    Fetches the name and website of the bet from the bet_description table.
+    """
+    query = """
+    SELECT name, website
+    FROM bet_description
+    WHERE bet_id = %s
+    """
+    try:
+        with connection.cursor(dictionary=True) as cursor:
+            cursor.execute(query, (bet_id,))
+            result = cursor.fetchone()
+            if result:
+                return result  # Return as a dictionary
+            else:
+                print(f"No bet found for bet_id {bet_id}")
+                return None
+    except mysql.connector.Error as e:
+        print(f"Error fetching bet description for bet_id {bet_id}: {e}")
+        return None
+
+
 # Main script
 if __name__ == "__main__":
-    connection = create_connection()
+    connection = create_connection()  # Establish the database connection
+
     if connection is None:
         print("Failed to connect to the database. Exiting...")
         exit()
 
-    # Fetch similar events with website information
-    similar_event_data = get_similar_event_ids_with_websites()
+    # Fetch all similar events from the database
+    similar_event_ids = get_similar_event_ids()
+
+    if not similar_event_ids:
+        print("No similar events found for arbitrage analysis.")
+        connection.close()
+        exit()
+
+    print("\nAnalyzing Arbitrage Opportunities:\n")
     
-    # Calculate arbitrage for each pair
-    for bet_id_1, website_1, bet_id_2, website_2 in similar_event_data:
+    for bet_id_1, bet_id_2 in similar_event_ids:
+        # Fetch websites for both events
+        event_1_details = get_bet_description(bet_id_1, connection)
+        event_2_details = get_bet_description(bet_id_2, connection)
+
+        if not event_1_details or not event_2_details:
+            print(f"Missing details for bets {bet_id_1} or {bet_id_2}. Skipping...")
+            continue
+
+        website_1 = event_1_details['website']
+        website_2 = event_2_details['website']
+
+        # Calculate and display arbitrage opportunities
         calculate_cross_market_arbitrage(bet_id_1, bet_id_2, website_1, website_2, connection)
 
-    connection.close()
+    connection.close()  # Close the database connection
+    print("\nArbitrage Analysis Complete.")
+
