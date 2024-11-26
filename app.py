@@ -131,30 +131,28 @@ def delete_bet(bet_id: int, db: Session = Depends(get_db)):
 # CRUD Operations for Arbitrage Opportunities
 
 class ArbitrageOpportunitiesBase(BaseModel):
+    arb_id: int
     bet_id1: int
     bet_id2: int
-    timestamp: Optional[date] = None
-    profit: Optional[float] = None
+    timestamp: Optional[str]
+    profit: Optional[float]
 
 class ArbitrageOpportunitiesCreate(ArbitrageOpportunitiesBase):
     pass
 
 class ArbitrageOpportunitiesResponse(ArbitrageOpportunitiesBase):
-    arb_id: int
-
     class Config:
         orm_mode = True
 
 @app.get("/api/v1/arbitrage", response_model=list[ArbitrageOpportunitiesResponse])
 def get_arbitrage_opportunities(db: Session = Depends(get_db)):
     opportunities = db.query(ArbitrageOpportunities).all()
-    # Convert datetime to date in the response, handle None for timestamp
     results = [
         {
             "arb_id": opp.arb_id,
             "bet_id1": opp.bet_id1,
             "bet_id2": opp.bet_id2,
-            "timestamp": opp.timestamp.date() if opp.timestamp else None,  # Handle None
+            "timestamp": opp.timestamp.date().isoformat() if opp.timestamp else None,
             "profit": float(opp.profit) if opp.profit is not None else None,
         }
         for opp in opportunities
@@ -166,7 +164,15 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
     opportunity = db.query(ArbitrageOpportunities).filter(ArbitrageOpportunities.arb_id == arb_id).first()
     if not opportunity:
         raise HTTPException(status_code=404, detail="Opportunity not found")
-    return opportunity
+    
+    result = {
+        "arb_id": opportunity.arb_id,
+        "bet_id1": opportunity.bet_id1,
+        "bet_id2": opportunity.bet_id2,
+        "timestamp": opportunity.timestamp.isoformat() if opportunity.timestamp else None,
+        "profit": float(opportunity.profit) if opportunity.profit is not None else None,
+    }
+    return result
 
 @app.post("/api/v1/arbitrage", response_model=ArbitrageOpportunitiesResponse)
 def create_arbitrage_opportunity(opportunity: ArbitrageOpportunitiesCreate, db: Session = Depends(get_db)):
