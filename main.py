@@ -607,9 +607,10 @@ def manage_similar_events(connection):
         else:
             print("Invalid choice. Please enter 1, 2, 3, or 4.")
 
-""" *** similar_choices table *** """
+""" *** similar_options table *** """
 
 def create_similar_options_table(connection):
+    """Ensures the similar_options table exists with the correct schema."""
     create_table_query = """
     CREATE TABLE IF NOT EXISTS similar_options (
         choice_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -617,38 +618,56 @@ def create_similar_options_table(connection):
         name_1 TEXT NOT NULL,
         option_id_2 INT NOT NULL,
         name_2 TEXT NOT NULL,
-        FOREIGN KEY (option_id_1) REFERENCES bet_description(bet_id),
-        FOREIGN KEY (option_id_2) REFERENCES bet_description(bet_id)
-    )
+        FOREIGN KEY (option_id_1) REFERENCES bet_choice(option_id),
+        FOREIGN KEY (option_id_2) REFERENCES bet_choice(option_id)
+    );
     """
     try:
         with connection.cursor() as cursor:
             cursor.execute(create_table_query)
             connection.commit()
-            print("Table 'similar_choices' created successfully with updated schema!")
-    except Error as e:
-        print(f"Error creating table 'similar_choices': {e}")
+            print("Table 'similar_options' ensured successfully!")
+    except Exception as e:
+        print(f"Error ensuring 'similar_options' table: {e}")
+
+def validate_option_id(connection, option_id):
+    """Checks if an option_id exists in the bet_choice table."""
+    query = "SELECT COUNT(*) FROM bet_choice WHERE option_id = %s"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (option_id,))
+            result = cursor.fetchone()
+            return result[0] > 0
+    except Exception as e:
+        print(f"Error validating option_id: {e}")
+        return False
 
 def add_similar_options(connection):
+    """Adds a pair of similar options to the similar_options table."""
     print("\nEnter details for the first choice in the pair:")
     option_id_1 = input("Enter option_id 1: ").strip()
     name_1 = input("Enter name 1: ").strip()
-    
-    print("\nEnter details for the second event in the pair:")
+
+    print("\nEnter details for the second choice in the pair:")
     option_id_2 = input("Enter option_id 2: ").strip()
     name_2 = input("Enter name 2: ").strip()
 
-    # Validate input
+    # Input validation
     if not all([option_id_1, name_1, option_id_2, name_2]):
         print("All fields are required. Please try again.")
         return
+
     if not (option_id_1.isdigit() and option_id_2.isdigit()):
-        print("option_id must be numeric. Please try again.")
+        print("Option IDs must be numeric. Please try again.")
+        return
+
+    if not (validate_option_id(connection, option_id_1) and validate_option_id(connection, option_id_2)):
+        print("One or both option IDs do not exist in the bet_choice table.")
         return
 
     query = """
     INSERT INTO similar_options (option_id_1, name_1, option_id_2, name_2)
-    VALUES (%s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s);
     """
     values = (option_id_1, name_1, option_id_2, name_2)
 
@@ -657,10 +676,11 @@ def add_similar_options(connection):
             cursor.execute(query, values)
             connection.commit()
             print("Similar option pair added successfully!")
-    except Error as e:
+    except Exception as e:
         print(f"Error adding similar option pair: {e}")
 
 def view_similar_options(connection):
+    """Views all records in the similar_options table."""
     query = "SELECT * FROM similar_options"
     try:
         with connection.cursor() as cursor:
@@ -669,19 +689,19 @@ def view_similar_options(connection):
             if not results:
                 print("No similar option pairs found in the database.")
             else:
-                for event in results:
-                    print(f"\Choice ID: {event[0]}")
-                    print(f"option ID 1: {event[1]}")
-                    print(f"name 1: {event[2]}")
-                    print(f"option ID 2: {event[4]}")
-                    print(f"name 2: {event[5]}")
-    except Error as e:
+                for record in results:
+                    print(f"\nChoice ID: {record[0]}")
+                    print(f"Option ID 1: {record[1]}")
+                    print(f"Name 1: {record[2]}")
+                    print(f"Option ID 2: {record[3]}")
+                    print(f"Name 2: {record[4]}")
+    except Exception as e:
         print(f"Error retrieving similar options: {e}")
 
-def delete_similar_options(connection):
-    choice_id = input("\nEnter the choice ID of the similar option pair to delete: ").strip()
+def delete_similar_option(connection):
+    """Deletes a specific similar option pair by its choice_id."""
+    choice_id = input("Enter the Choice ID of the similar option pair to delete: ").strip()
 
-    # Validate input
     if not choice_id.isdigit():
         print("Choice ID must be numeric. Please try again.")
         return
@@ -692,13 +712,14 @@ def delete_similar_options(connection):
             cursor.execute(query, (choice_id,))
             connection.commit()
             if cursor.rowcount > 0:
-                print(f"Similar option pair with choice ID {choice_id} deleted successfully!")
+                print(f"Similar option pair with Choice ID {choice_id} deleted successfully!")
             else:
-                print(f"No similar option pair found with choice ID {choice_id}.")
-    except Error as e:
+                print(f"No similar option pair found with Choice ID {choice_id}.")
+    except Exception as e:
         print(f"Error deleting similar option pair: {e}")
 
 def manage_similar_options(connection):
+    """Menu to manage the similar_options table."""
     while True:
         print("\nSimilar Options Management:")
         print("1. Add a Similar Option Pair")
@@ -713,12 +734,11 @@ def manage_similar_options(connection):
         elif choice == '2':
             view_similar_options(connection)
         elif choice == '3':
-            delete_similar_options(connection)
+            delete_similar_option(connection)
         elif choice == '4':
             break
         else:
             print("Invalid choice. Please enter 1, 2, 3, or 4.")
-
 
 """ *** sub-menu for Best Descriptions *** """
 
