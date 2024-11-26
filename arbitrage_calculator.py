@@ -10,6 +10,7 @@ from mysql.connector import Error
 import os
 from dotenv import load_dotenv
 from datetime import datetime
+from globals import arbitrage_sides_lookup
 
 # API endpoint
 API_BASE_URL = "http://localhost:9000/api/v1/bets"
@@ -178,16 +179,16 @@ def bet_id_exists(bet_id: int, connection) -> bool:
     except mysql.connector.Error as e:
         print(f"Error checking if bet_id {bet_id} exists: {e}")
         return False
-    
+
 # Insert arbitrage opportunity into the database
-def insert_arbitrage_opportunity(connection, option_id_1: int, option_id_2: int, profit: float):
+def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profit: float, bet_side_1: str, bet_side_2: str):
     # Fetch the corresponding bet IDs for the given option IDs
-    bet_id_1 = get_bet_id_from_option_id(option_id_1, connection)
-    bet_id_2 = get_bet_id_from_option_id(option_id_2, connection)
+    bet_id_1 = get_bet_id_from_option_id(bet_id_1, connection)
+    bet_id_2 = get_bet_id_from_option_id(bet_id_2, connection)
 
     # Check if both bet IDs were found
     if bet_id_1 is None or bet_id_2 is None:
-        print(f"Cannot insert arbitrage opportunity: One or both option IDs ({option_id_1}, {option_id_2}) could not be mapped to bet IDs.")
+        print(f"Cannot insert arbitrage opportunity: One or both option IDs ({bet_id_1}, {bet_id_2}) could not be mapped to bet IDs.")
         return
 
     # Check if bet_id_1 and bet_id_2 exist in the referenced table
@@ -206,7 +207,15 @@ def insert_arbitrage_opportunity(connection, option_id_1: int, option_id_2: int,
     try:
         with connection.cursor() as cursor:
             cursor.execute(query, values)
-            connection.commit()  # Commit to save the changes
+            arb_id = cursor.lastrowid
+            connection.commit()  
+
+            # Store the bet sides in the arbitrage_sides_lookup dictionary
+            arbitrage_sides_lookup[arb_id] = {
+                "bet_side_1": bet_side_1,
+                "bet_side_2": bet_side_2
+            }
+
             print(f"Arbitrage opportunity added with ID: {cursor.lastrowid}")
     except Error as e:
         print(f"Error adding arbitrage opportunity: {e}")
@@ -261,7 +270,9 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
 
         print(f"Arbitrage Opportunity: Bet {bet_type_1} on {market_bet_1} ({option_name_1}), "
               f"Bet {bet_type_2} on {market_bet_2} ({option_name_2}). Profit = {profit}")
-        insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit)
+        
+        # Pass the bet sides to insert_arbitrage_opportunity()
+        insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit, bet_type_1, bet_type_2)
     else:
         print("No arbitrage opportunity found.")
 
