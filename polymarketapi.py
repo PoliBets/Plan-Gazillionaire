@@ -45,7 +45,15 @@ def process_response(response, political_events, bet_choices, prices, lock):
             
                 if not main.price_exists(connection, market_id) and clean_outcomePrices:
                     with lock:
-                        prices.append((market_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), volume, clean_outcomePrices[0]*100, clean_outcomePrices[1]*100, clean_outcomePrices[0]*100, clean_outcomePrices[1]*100))
+                        prices.append((
+                            market_id, 
+                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 
+                            volume, 
+                            float(clean_outcomePrices[0])*100, 
+                            float(clean_outcomePrices[1])*100, 
+                            float(clean_outcomePrices[0])*100, 
+                            float(clean_outcomePrices[1])*100
+                        ))
                     print("price added")
                 else:
                     print("no new price")
