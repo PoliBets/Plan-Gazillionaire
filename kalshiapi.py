@@ -48,6 +48,7 @@ def fetch_kalshi_events():
 
         r = response.json()
         batch = r.get("events", [])
+        print(batch)
         
         # Filter only Political events
         political_events = [event for event in batch if event.get("category") == "Politics" or event.get("category") == "World" or event.get("category") == "Economics"]
@@ -116,7 +117,7 @@ def insert_event_data(connection, events):
             bet_description_values.append((bet_id, event_name, expiration_date, website, status, is_arbitrage))
             
             for market in event.get("markets", []):
-                market_subtitle = market.get("subtitle", "Unknown Choice")
+                market_subtitle = market.get("yes_sub_title")
                 outcome = 'pending'
                 
                 bet_choice_values.append((option_id, bet_id, market_subtitle, outcome))
