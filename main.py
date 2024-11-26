@@ -675,15 +675,17 @@ def manage_similar_events(connection):
 """ *** similar_event_options table *** """
 def create_similar_event_options_table(connection):
     """
-    Creates the `similar_event_options` table in the database.
+    Drops and creates the `similar_event_options` table in the database.
     This table links similar_events with corresponding options from bet_choice.
     """
     create_table_query = """
     CREATE TABLE IF NOT EXISTS similar_event_options (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        event_id INT NOT NULL,          
-        option_id_1 INT NOT NULL,       
-        option_id_2 INT NOT NULL,       
+        event_id INT NOT NULL,
+        option_id_1 INT NOT NULL,
+        option_id_2 INT NOT NULL,
+        option_name_1 VARCHAR(255),
+        option_name_2 VARCHAR(255),
         FOREIGN KEY (event_id) REFERENCES similar_events(event_id),
         FOREIGN KEY (option_id_1) REFERENCES bet_choice(option_id),
         FOREIGN KEY (option_id_2) REFERENCES bet_choice(option_id)
@@ -691,15 +693,16 @@ def create_similar_event_options_table(connection):
     """
     try:
         with connection.cursor() as cursor:
+            # Create new table
             cursor.execute(create_table_query)
             connection.commit()
-            print("Table 'similar_event_options' created successfully.")
+            print("Table 'similar_event_options' recreated successfully.")
     except Error as e:
         print(f"Error creating 'similar_event_options' table: {e}")
 
 def add_similar_event_options(connection):
     """
-    Add paired options for a given similar event (event_id).
+    Add paired options for a given similar event (event_id) manually with option names.
     """
     event_id = input("Enter the event_id for the similar event: ").strip()
 
@@ -708,7 +711,7 @@ def add_similar_event_options(connection):
         print("Invalid event_id. Please try again.")
         return
 
-    # Add first option
+    # Add first and second options
     option_id_1 = input("Enter option_id for the first event: ").strip()
     option_id_2 = input("Enter option_id for the second event: ").strip()
 
@@ -717,11 +720,16 @@ def add_similar_event_options(connection):
         print("Invalid option IDs. Please try again.")
         return
 
+    # Manually input the option names
+    option_name_1 = input("Enter the name for the first option: ").strip()
+    option_name_2 = input("Enter the name for the second option: ").strip()
+
+    # Insert data into similar_event_options table
     query = """
-    INSERT INTO similar_event_options (event_id, option_id_1, option_id_2)
-    VALUES (%s, %s, %s);
+    INSERT INTO similar_event_options (event_id, option_id_1, option_id_2, option_name_1, option_name_2)
+    VALUES (%s, %s, %s, %s, %s);
     """
-    values = (event_id, option_id_1, option_id_2)
+    values = (event_id, option_id_1, option_id_2, option_name_1, option_name_2)
 
     try:
         with connection.cursor() as cursor:
@@ -734,7 +742,7 @@ def add_similar_event_options(connection):
 # View all similar option pairs
 def view_similar_option_pairs(connection):
     query = """
-    SELECT seo.id, seo.event_id, se.description_1, seo.option_id_1, seo.option_id_2
+    SELECT seo.id, seo.event_id, se.description_1, seo.option_id_1, seo.option_name_1, seo.option_id_2, seo.option_name_2
     FROM similar_event_options seo
     JOIN similar_events se ON seo.event_id = se.event_id
     """
@@ -750,7 +758,9 @@ def view_similar_option_pairs(connection):
                     print(f"Event ID: {record[1]}")
                     print(f"Event Description: {record[2]}")
                     print(f"Option ID 1: {record[3]}")
-                    print(f"Option ID 2: {record[4]}")
+                    print(f"Option Name 1: {record[4]}")
+                    print(f"Option ID 2: {record[5]}")
+                    print(f"Option Name 2: {record[6]}")
     except Error as e:
         print(f"Error retrieving similar option pairs: {e}")
 

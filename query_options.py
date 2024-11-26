@@ -5,7 +5,6 @@ import os
 
 # Load environment variables from .env file
 load_dotenv()
-
 def create_connection():
     """
     Establish and return a connection to the MySQL database.
