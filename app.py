@@ -245,50 +245,66 @@ def get_all_arbitrage_opportunities(db: Session = Depends(get_db)):
 
 @app.get("/api/v1/arbitrage/{arb_id}", response_model=ArbitrageOpportunitiesDetailResponse)
 def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
-    # Aliases for joined tables to avoid ambiguity
-    bet1 = aliased(BetDescription)
-    bet2 = aliased(BetDescription)
-    similar_event_options = aliased(SimilarEventOptions)
-    similar_events = aliased(SimilarEvents)
-
-    # Query to join necessary tables and fetch all required information
-    opportunity = (
-        db.query(
-            ArbitrageOpportunities,
-            bet1,
-            bet2,
-            similar_event_options,
-            similar_events,
-        )
-        .join(bet1, ArbitrageOpportunities.bet_id1 == bet1.bet_id)
-        .join(bet2, ArbitrageOpportunities.bet_id2 == bet2.bet_id)
-        .outerjoin(similar_event_options, ArbitrageOpportunities.bet_id1 == similar_event_options.option_id_1)
-        .outerjoin(similar_events, similar_event_options.event_id == similar_events.event_id)
-        .filter(ArbitrageOpportunities.arb_id == arb_id)
-        .first()
-    )
+    # Fetch the arbitrage opportunity
+    opportunity = db.query(ArbitrageOpportunities).filter(ArbitrageOpportunities.arb_id == arb_id).first()
 
     if not opportunity:
         raise HTTPException(status_code=404, detail="Opportunity not found")
 
-    # Unpack the opportunity and join table results
-    arbitrage, bet_details_1, bet_details_2, similar_event_opts, similar_evts = opportunity
+    # Fetch bet descriptions
+    bet1 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id1).first()
+    bet2 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id2).first()
+
+    # Handling None values for bets
+    bet_description_1 = bet1.name if bet1 else "N/A"
+    bet_description_2 = bet2.name if bet2 else "N/A"
+    website_1 = bet1.website if bet1 else "N/A"
+    website_2 = bet2.website if bet2 else "N/A"
+
+    # Fetching event_id from similar_events table
+    similar_event = db.query(SimilarEvents).filter(
+        (SimilarEvents.bet_id_1 == opportunity.bet_id1) &
+        (SimilarEvents.bet_id_2 == opportunity.bet_id2)
+    ).first()
+
+    # Use event_id to fetch data from similar_event_options table
+    if similar_event:
+        similar_event_options = db.query(SimilarEventOptions).filter(
+            SimilarEventOptions.event_id == similar_event.event_id
+        ).first()
+    else:
+        similar_event_options = None
+
+    # Handling None values for similar_event_options
+    option_name_1 = similar_event_options.option_name_1 if similar_event_options else "N/A"
+    option_name_2 = similar_event_options.option_name_2 if similar_event_options else "N/A"
+
+    # Fetching bet sides from the arbitrage_bet_sides table
+    bet_sides = db.query(BetSides).filter(BetSides.arb_id == opportunity.arb_id).first()
+
+    # Handling None values for bet_sides
+    if bet_sides:
+        bet_side_1 = bet_sides.bet_side_1
+        bet_side_2 = bet_sides.bet_side_2
+    else:
+        bet_side_1 = "Unknown"  # Fallback if no bet sides found
+        bet_side_2 = "Unknown"  # Fallback if no bet sides found
 
     # Build the result dictionary
     result = {
-        "arb_id": arbitrage.arb_id,
-        "bet_id1": arbitrage.bet_id1,
-        "bet_id2": arbitrage.bet_id2,
-        "bet_description_1": bet_details_1.name,
-        "bet_description_2": bet_details_2.name,
-        "website_1": bet_details_1.website,
-        "website_2": bet_details_2.website,
-        "option_name_1": similar_event_opts.option_name_1 if similar_event_opts else "N/A",
-        "option_name_2": similar_event_opts.option_name_2 if similar_event_opts else "N/A",
-        "bet_side_1": arbitrage_sides_lookup.get(arbitrage.arb_id, {}).get("bet_side_1", "Unknown"),
-        "bet_side_2": arbitrage_sides_lookup.get(arbitrage.arb_id, {}).get("bet_side_2", "Unknown"),
-        "profit": float(arbitrage.profit) if arbitrage.profit is not None else None,
-        "timestamp": arbitrage.timestamp.isoformat() if arbitrage.timestamp else None,
+        "arb_id": opportunity.arb_id,
+        "bet_id1": opportunity.bet_id1,
+        "bet_id2": opportunity.bet_id2,
+        "bet_description_1": bet_description_1,
+        "bet_description_2": bet_description_2,
+        "website_1": website_1,
+        "website_2": website_2,
+        "option_name_1": option_name_1,
+        "option_name_2": option_name_2,
+        "bet_side_1": bet_side_1,
+        "bet_side_2": bet_side_2,
+        "profit": float(opportunity.profit) if opportunity.profit is not None else 0.0,
+        "timestamp": opportunity.timestamp.isoformat() if opportunity.timestamp else "N/A",
     }
 
     return result
