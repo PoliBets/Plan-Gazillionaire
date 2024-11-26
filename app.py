@@ -68,6 +68,12 @@ class SimilarEvents(Base):
     description_2 = Column(String(255))
     website_2 = Column(String(255))
 
+class BetSides(Base):
+    __tablename__ = 'arbitrage_bet_sides'
+    arb_id = Column(Integer, ForeignKey('arbitrage_opportunities.arb_id'), primary_key=True)
+    bet_side_1 = Column(String(10), nullable=False)
+    bet_side_2 = Column(String(10), nullable=False)
+
 # Create all tables in the database
 Base.metadata.create_all(bind=engine)
 
@@ -206,14 +212,18 @@ def get_all_arbitrage_opportunities(db: Session = Depends(get_db)):
         option_name_1 = similar_event_options.option_name_1 if similar_event_options else "N/A"
         option_name_2 = similar_event_options.option_name_2 if similar_event_options else "N/A"
 
-        # Get bet sides from the lookup dictionary
-        if opportunity.arb_id in arbitrage_sides_lookup:
-            bet_side_1 = arbitrage_sides_lookup[opportunity.arb_id]["bet_side_1"]
-            bet_side_2 = arbitrage_sides_lookup[opportunity.arb_id]["bet_side_2"]
-        else:
-            bet_side_1 = "Unknown"  # Fallback if lookup is missing
-            bet_side_2 = "Unknown"  # Fallback if lookup is missing
+        # Fetching bet sides from the arbitrage_bet_sides table
+        bet_sides = db.query(BetSides).filter(BetSides.arb_id == opportunity.arb_id).first()
 
+        # Handling None values for bet_sides
+        if bet_sides:
+            bet_side_1 = bet_sides.bet_side_1
+            bet_side_2 = bet_sides.bet_side_2
+        else:
+            bet_side_1 = "Unknown"  # Fallback if no bet sides found
+            bet_side_2 = "Unknown"  # Fallback if no bet sides found
+
+        # Building the result dictionary
         result = {
             "arb_id": opportunity.arb_id,
             "bet_id1": opportunity.bet_id1,
@@ -252,8 +262,8 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         )
         .join(bet1, ArbitrageOpportunities.bet_id1 == bet1.bet_id)
         .join(bet2, ArbitrageOpportunities.bet_id2 == bet2.bet_id)
-        .join(similar_event_options, ArbitrageOpportunities.bet_id1 == similar_event_options.option_id_1)
-        .join(similar_events, similar_event_options.event_id == similar_events.event_id)
+        .outerjoin(similar_event_options, ArbitrageOpportunities.bet_id1 == similar_event_options.option_id_1)
+        .outerjoin(similar_events, similar_event_options.event_id == similar_events.event_id)
         .filter(ArbitrageOpportunities.arb_id == arb_id)
         .first()
     )
@@ -262,7 +272,7 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Opportunity not found")
 
     # Unpack the opportunity and join table results
-    arbitrage, bet_details_1, bet_details_2, similar_event_opts = opportunity
+    arbitrage, bet_details_1, bet_details_2, similar_event_opts, similar_evts = opportunity
 
     # Build the result dictionary
     result = {
@@ -280,6 +290,7 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         "profit": float(arbitrage.profit) if arbitrage.profit is not None else None,
         "timestamp": arbitrage.timestamp.isoformat() if arbitrage.timestamp else None,
     }
+
     return result
 
 @app.post("/api/v1/arbitrage", response_model=ArbitrageOpportunitiesDetailResponse)

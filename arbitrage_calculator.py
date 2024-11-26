@@ -10,7 +10,7 @@ from mysql.connector import Error
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from globals import arbitrage_sides_lookup
+from globals import add_to_arbitrage_sides_lookup
 
 # API endpoint
 API_BASE_URL = "http://localhost:9000/api/v1/bets"
@@ -197,26 +197,34 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
         return
 
     # Insert into arbitrage_opportunities
-    query = """
+    arbitrage_query = """
     INSERT INTO arbitrage_opportunities (bet_id1, bet_id2, timestamp, profit)
     VALUES (%s, %s, %s, %s)
     """
     timestamp = datetime.now()
-    values = (bet_id_1, bet_id_2, timestamp, profit)
+    arbitrage_values = (bet_id_1, bet_id_2, timestamp, profit)
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute(query, values)
+            # Insert into arbitrage_opportunities table
+            cursor.execute(arbitrage_query, arbitrage_values)
             arb_id = cursor.lastrowid
-            connection.commit()  
+            connection.commit()
 
-            # Store the bet sides in the arbitrage_sides_lookup dictionary
-            arbitrage_sides_lookup[arb_id] = {
-                "bet_side_1": bet_side_1,
-                "bet_side_2": bet_side_2
-            }
+            # Insert into arbitrage_bet_sides table
+            bet_sides_query = """
+            INSERT INTO arbitrage_bet_sides (arb_id, bet_side_1, bet_side_2)
+            VALUES (%s, %s, %s)
+            """
+            bet_sides_values = (arb_id, bet_side_1, bet_side_2)
 
-            print(f"Arbitrage opportunity added with ID: {cursor.lastrowid}")
+            cursor.execute(bet_sides_query, bet_sides_values)
+            connection.commit()
+
+            # Optionally update the in-memory lookup as well
+            add_to_arbitrage_sides_lookup(arb_id, bet_side_1, bet_side_2)
+
+            print(f"Inserted arbitrage sides for arb_id {arb_id}")
     except Error as e:
         print(f"Error adding arbitrage opportunity: {e}")
     finally:

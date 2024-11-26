@@ -805,6 +805,26 @@ def manage_similar_options(connection):
         else:
             print("Invalid choice. Please enter a number between 1 and 4.")
 
+def create_arbitrage_bet_sides_table(connection):
+    """
+    This table stores the bet sides for each arbitrage opportunity.
+    """
+    create_table_query = """
+    CREATE TABLE IF NOT EXISTS arbitrage_bet_sides (
+        arb_id INT PRIMARY KEY,
+        bet_side_1 VARCHAR(10) NOT NULL,
+        bet_side_2 VARCHAR(10) NOT NULL,
+        FOREIGN KEY (arb_id) REFERENCES arbitrage_opportunities(arb_id)
+    );
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(create_table_query)
+            connection.commit()
+            print("Table 'arbitrage_bet_sides' created successfully.")
+    except Error as e:
+        print(f"Error creating 'arbitrage_bet_sides' table: {e}")
+
 """ *** sub-menu for Best Choice *** """
 
 def manage_bet_choice(connection):
@@ -1017,6 +1037,7 @@ def main():
             create_arbitrage_opportunities_table(connection)
             create_similar_events_table(connection)
             create_similar_event_options_table(connection)
+            create_arbitrage_bet_sides_table(connection)
             join_bet_data(connection)
 
             main_menu(connection)
