@@ -4,6 +4,7 @@ import mysql.connector
 from mysql.connector import Error
 from datetime import datetime
 from tqdm import tqdm
+import hashlib
 import main
 
 def parse_date(date_str):
@@ -19,6 +20,10 @@ def parse_date(date_str):
             continue
     print(f"Invalid date format: {date_str}")
     return None
+
+def generate_unique_option_id(bet_id, market_name):
+    unique_str = f"{bet_id}-{market_name}"
+    return int(hashlib.md5(unique_str.encode()).hexdigest(), 16) % (10 ** 8)
 
 def fetch_kalshi_events():
     session = requests_cache.CachedSession('requests_cache')
@@ -48,10 +53,9 @@ def fetch_kalshi_events():
 
         r = response.json()
         batch = r.get("events", [])
-        print(batch)
         
         # Filter only Political events
-        political_events = [event for event in batch if event.get("category") == "Politics" or event.get("category") == "World" or event.get("category") == "Economics"]
+        political_events = [event for event in batch if event.get("category") in {"Politics", "World", "Economics"}]
         events.extend(political_events)
 
         print(f"Fetched {len(political_events)} political events in this batch (Total: {len(events)})")
@@ -64,11 +68,10 @@ def fetch_kalshi_events():
     print(f"Total political events fetched: {len(events)}")
     return events
 
-def get_max_option_id(connection):
+def fetch_existing_option_ids(connection):
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COALESCE(MAX(option_id), 0) FROM bet_choice")
-        result = cursor.fetchone()
-        return result[0] if result else 0
+        cursor.execute("SELECT option_id FROM bet_choice")
+        return {row[0] for row in cursor.fetchall()}
 
 def insert_event_data(connection, events):
     bet_description_query = """
@@ -94,13 +97,19 @@ def insert_event_data(connection, events):
     price_query = """
     INSERT INTO price (option_id, timestamp, volume, yes_price, no_price, yes_odds, no_odds)
     VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE 
+        volume=VALUES(volume),
+        yes_price=VALUES(yes_price),
+        no_price=VALUES(no_price),
+        yes_odds=VALUES(yes_odds),
+        no_odds=VALUES(no_odds)
     """
     
     bet_description_values = []
     bet_choice_values = []
     price_values = []
     
-    option_id = get_max_option_id(connection) + 1
+    existing_option_ids = fetch_existing_option_ids(connection)
     current_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     print("Inserting event data into the database...")
@@ -117,9 +126,14 @@ def insert_event_data(connection, events):
             bet_description_values.append((bet_id, event_name, expiration_date, website, status, is_arbitrage))
             
             for market in event.get("markets", []):
-                market_subtitle = market.get("yes_sub_title")
-                outcome = 'pending'
+                market_subtitle = market.get("yes_sub_title", "")
+                option_id = generate_unique_option_id(bet_id, market_subtitle)
                 
+                if option_id in existing_option_ids:
+                    print(f"Skipping duplicate option_id: {option_id}")
+                    continue
+                
+                outcome = 'pending'
                 bet_choice_values.append((option_id, bet_id, market_subtitle, outcome))
                 
                 yes_price = market.get("yes_bid", 0)
@@ -129,8 +143,6 @@ def insert_event_data(connection, events):
                 volume = market.get("volume", 0)
                 
                 price_values.append((option_id, current_timestamp, volume, yes_price, no_price, yes_odds, no_odds))
-                
-                option_id += 1
 
             pbar.update(1)
             
