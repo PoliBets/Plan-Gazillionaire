@@ -1,4 +1,5 @@
 import requests
+import math
 from requests.adapters import HTTPAdapter
 from typing import Optional, Tuple
 from requests import Session
@@ -235,11 +236,22 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
     finally:
         print(f"Attempted to insert arbitrage opportunity: bet_id1={bet_id_1}, bet_id2={bet_id_2}, profit={profit}")
 
+# Calculate Kalshi fees
+def calculate_kalshi_fees(P, C):
+    """
+    Calculate the trading fees using the formula:
+    fees = round_up(0.07 * C * P * (1 - P))
+    """
+    fees = 0.07 * C * P * (1 - P)
+    # Round up to the nearest cent
+    rounded_fees = math.ceil(fees * 100) / 100
+    return rounded_fees
 
 # Calculate cross-market arbitrage for a pair of option IDs
-def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, option_name_2, website_1, website_2, connection):
+def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, option_name_2, website_1, website_2, connection, initial_amount=100):
     """
     Calculate arbitrage opportunities for a pair of option IDs, considering the website.
+    Assumes a fixed initial amount of $100 for each trade.
     """
     # Ensure the options are on different platforms
     if website_1 == website_2:
@@ -263,31 +275,60 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
         price_yes_market2 *= 100
         price_no_market2 *= 100
 
-    print(f"Adjusted prices for option_id_1 ({option_id_1}, {option_name_1}): price_yes = {price_yes_market1}, price_no = {price_no_market1}")
-    print(f"Adjusted prices for option_id_2 ({option_id_2}, {option_name_2}): price_yes = {price_yes_market2}, price_no = {price_no_market2}")
+    # Fixed number of contracts assuming $100 for each trade
+    def calculate_contracts(price):
+        return math.floor(initial_amount / (price / 100)) if price > 0 else 0
 
-    # Calculate arbitrage for both cases and pick the best option
-    scenario_1_cost = price_yes_market1 + price_no_market2
-    scenario_2_cost = price_no_market1 + price_yes_market2
+    # Calculate contracts for each side
+    C1_yes = calculate_contracts(price_yes_market1)
+    C1_no = calculate_contracts(price_no_market1)
+    C2_yes = calculate_contracts(price_yes_market2)
+    C2_no = calculate_contracts(price_no_market2)
+
+    # Calculate fees only for Kalshi
+    fee_scenario_1_market1 = calculate_kalshi_fees(price_yes_market1 / 100, C1_yes) if website_1.lower() == "kalshi" else 0
+    fee_scenario_1_market2 = calculate_kalshi_fees(price_no_market2 / 100, C2_no) if website_2.lower() == "kalshi" else 0
+    fee_scenario_2_market1 = calculate_kalshi_fees(price_no_market1 / 100, C1_no) if website_1.lower() == "kalshi" else 0
+    fee_scenario_2_market2 = calculate_kalshi_fees(price_yes_market2 / 100, C2_yes) if website_2.lower() == "kalshi" else 0
+
+    # Calculate total costs for both scenarios (including fees)
+    scenario_1_cost = (C1_yes * price_yes_market1 + C2_no * price_no_market2) / 100
+    scenario_2_cost = (C1_no * price_no_market1 + C2_yes * price_yes_market2) / 100
+
+    # Add fees to the total costs for Kalshi
+    scenario_1_cost_with_fees = scenario_1_cost + fee_scenario_1_market1 + fee_scenario_1_market2
+    scenario_2_cost_with_fees = scenario_2_cost + fee_scenario_2_market1 + fee_scenario_2_market2
+
+    # Print detailed costs and fees for Kalshi
+    if website_1.lower() == "kalshi":
+        print(f"Market 1 (Kalshi):")
+        print(f"  YES contracts cost: ${C1_yes * price_yes_market1 / 100:.2f}, Fees: ${fee_scenario_1_market1:.2f}")
+        print(f"  NO contracts cost: ${C1_no * price_no_market1 / 100:.2f}, Fees: ${fee_scenario_2_market1:.2f}")
+
+    if website_2.lower() == "kalshi":
+        print(f"Market 2 (Kalshi):")
+        print(f"  YES contracts cost: ${C2_yes * price_yes_market2 / 100:.2f}, Fees: ${fee_scenario_2_market2:.2f}")
+        print(f"  NO contracts cost: ${C2_no * price_no_market2 / 100:.2f}, Fees: ${fee_scenario_1_market2:.2f}")
 
     # Determine which scenario is profitable
-    if scenario_1_cost < 100 or scenario_2_cost < 100:
-        if scenario_1_cost < scenario_2_cost:
-            profit = 100 - scenario_1_cost
+    if scenario_1_cost_with_fees < 100 or scenario_2_cost_with_fees < 100:
+        if scenario_1_cost_with_fees < scenario_2_cost_with_fees:
+            profit = 100 - scenario_1_cost_with_fees
             bet_type_1, bet_type_2 = "YES", "NO"
             market_bet_1, market_bet_2 = option_id_1, option_id_2
-        elif scenario_2_cost < scenario_1_cost:
-            profit = 100 - scenario_2_cost
+        else:
+            profit = 100 - scenario_2_cost_with_fees
             bet_type_1, bet_type_2 = "NO", "YES"
             market_bet_1, market_bet_2 = option_id_1, option_id_2
 
         print(f"Arbitrage Opportunity: Bet {bet_type_1} on {market_bet_1} ({option_name_1}), "
-              f"Bet {bet_type_2} on {market_bet_2} ({option_name_2}). Profit = {profit}")
+              f"Bet {bet_type_2} on {market_bet_2} ({option_name_2}). Profit = ${profit:.2f}")
         
         # Pass the bet sides to insert_arbitrage_opportunity()
         insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit, bet_type_1, bet_type_2)
     else:
         print("No arbitrage opportunity found.")
+
 
 def arbitrage_opportunity_exists(connection, bet_id1, bet_id2):
     query = """
