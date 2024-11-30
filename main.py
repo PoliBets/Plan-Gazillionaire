@@ -240,7 +240,7 @@ def create_price_table(connection):
     CREATE TABLE IF NOT EXISTS price (
         option_id INT,
         timestamp DATETIME,
-        volume DECIMAL(10, 2),
+        volume DECIMAL(18, 5),
         yes_price DECIMAL(10, 2),
         no_price DECIMAL(10, 2),
         yes_odds DECIMAL(10, 2),

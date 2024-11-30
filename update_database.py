@@ -16,6 +16,12 @@ def close_expired_events(connection):
     SET status = 'closed'
     WHERE bet_id = %s
     """
+
+    query_update2 = """
+    UPDATE bet_choice 
+    SET outcome = 'closed'
+    WHERE bet_id = %s
+    """
     
     try:
         with connection.cursor() as cursor:
@@ -36,6 +42,7 @@ def close_expired_events(connection):
             
             if closed_events:
                 cursor.executemany(query_update, [(bet_id,) for bet_id in closed_events])
+                cursor.executemany(query_update2, [(bet_id,) for bet_id in closed_events])
                 connection.commit()
                 print(f"Updated {len(closed_events)} events to 'closed' status.")
             else:
@@ -43,7 +50,7 @@ def close_expired_events(connection):
     except Error as e:
         print(f"Error while updating expired events: {e}")
 
-if __name__ == "__main__":
+def close_past_events():
     connection = main.create_connection()
 
     if connection:
