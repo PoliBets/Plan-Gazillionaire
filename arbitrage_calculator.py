@@ -195,6 +195,11 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
     if not bet_id_exists(bet_id_1, connection) or not bet_id_exists(bet_id_2, connection):
         print(f"Cannot insert arbitrage opportunity: One or both bet IDs ({bet_id_1}, {bet_id_2}) do not exist in bet_description table.")
         return
+    
+    # Check if the arbitrage opportunity already exists
+    if arbitrage_opportunity_exists(connection, bet_id_1, bet_id_2):
+        print(f"Arbitrage opportunity between bet_id1={bet_id_1} and bet_id2={bet_id_2} already exists. Skipping insertion.")
+        return
 
     # Insert into arbitrage_opportunities
     arbitrage_query = """
@@ -271,7 +276,7 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
             profit = 100 - scenario_1_cost
             bet_type_1, bet_type_2 = "YES", "NO"
             market_bet_1, market_bet_2 = option_id_1, option_id_2
-        else:
+        elif scenario_2_cost < scenario_1_cost:
             profit = 100 - scenario_2_cost
             bet_type_1, bet_type_2 = "NO", "YES"
             market_bet_1, market_bet_2 = option_id_1, option_id_2
@@ -283,6 +288,21 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
         insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit, bet_type_1, bet_type_2)
     else:
         print("No arbitrage opportunity found.")
+
+def arbitrage_opportunity_exists(connection, bet_id1, bet_id2):
+    query = """
+    SELECT COUNT(*)
+    FROM arbitrage_opportunities
+    WHERE (bet_id1 = %s AND bet_id2 = %s) OR (bet_id1 = %s AND bet_id2 = %s)
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, (bet_id1, bet_id2, bet_id2, bet_id1))
+            result = cursor.fetchone()
+            return result[0] > 0
+    except mysql.connector.Error as e:
+        print(f"Error checking for existing arbitrage opportunity: {e}")
+        return False
 
    
 # Helper - Fetch similar event IDs along with their websites
