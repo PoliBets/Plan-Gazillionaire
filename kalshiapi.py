@@ -173,7 +173,7 @@ def insert_event_data(connection, events):
     except Error as e:
         print(f"Error inserting event data: {e}")
 
-if __name__ == "__main__":
+def get_kalshi_info():
     connection = main.create_connection()
 
     if connection:
@@ -183,3 +183,5 @@ if __name__ == "__main__":
         connection.close()
     else:
         print("Failed to connect to the database.")
+
+

@@ -133,6 +133,3 @@ def getpolymarketinfo():
     
     connection.close()
     print(f"Inserted {len(political_events)} bet descriptions, {len(bet_choices)} bet choices, and {len(prices)} prices successfully.")
-
-
-getpolymarketinfo()
