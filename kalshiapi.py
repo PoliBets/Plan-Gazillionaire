@@ -65,6 +65,7 @@ def get_max_option_id(connection):
         print(f"Error fetching max option_id: {e}")
         return 0
 
+# used to remove duplicates, not used anymore
 def clear_kalshi_events(connection):
     try:
         with connection.cursor() as cursor:
@@ -104,7 +105,25 @@ def clear_kalshi_events(connection):
     except Error as e:
         print(f"Error clearing Kalshi events: {e}")
 
+def check_event_exists(connection, event_name, expiration_date):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT bet_id FROM bet_description 
+            WHERE name = %s AND expiration_date = %s
+        """, (event_name, expiration_date))
+        result = cursor.fetchone() 
+        cursor.fetchall()  
+        return result
 
+def check_market_exists(connection, bet_id, market_subtitle):
+    with connection.cursor() as cursor:
+        cursor.execute("""
+            SELECT option_id FROM bet_choice 
+            WHERE bet_id = %s AND name = %s
+        """, (bet_id, market_subtitle))
+        result = cursor.fetchone() 
+        cursor.fetchall() 
+        return result
 
 def insert_event_data(connection, events):
     bet_description_query = """
@@ -142,14 +161,20 @@ def insert_event_data(connection, events):
     bet_choice_values = []
     price_values = []
 
-    option_id = get_max_option_id(connection) + 1
+    option_id = get_max_option_id(connection) + 1 
 
     print("Inserting event data into the database...")
     for event in events:
         event_name = event.get("title")
         expiration_date = parse_date(event["markets"][0]["close_time"]) if event.get("markets") else None
-        bet_id = int(hashlib.md5(f"{event_name}-{expiration_date}".encode()).hexdigest(), 16) % (10**8)
 
+        existing_event = check_event_exists(connection, event_name, expiration_date)
+
+        if existing_event:
+            bet_id = existing_event[0]
+        else:
+            bet_id = int(hashlib.md5(f"{event_name}-{expiration_date}".encode()).hexdigest(), 16) % (10**8)
+        
         bet_description_values.append((bet_id, event_name, expiration_date, "kalshi", "open", "no"))
 
         for market in event.get("markets", []):
@@ -158,10 +183,17 @@ def insert_event_data(connection, events):
             yes_price = market.get("yes_bid", 0)
             no_price = market.get("no_bid", 0)
 
-            bet_choice_values.append((option_id, bet_id, market_subtitle, "pending"))
+            existing_market = check_market_exists(connection, bet_id, market_subtitle)
+
+            if existing_market:
+                option_id = existing_market[0]
+            else:
+                option_id = get_max_option_id(connection) + 1
+                bet_choice_values.append((option_id, bet_id, market_subtitle, "pending"))
+            
             price_values.append((option_id, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), volume, yes_price, no_price, yes_price, no_price))
 
-            option_id += 1
+            option_id += 1 
 
     try:
         with connection.cursor() as cursor:
@@ -169,15 +201,15 @@ def insert_event_data(connection, events):
             cursor.executemany(bet_choice_query, bet_choice_values)
             cursor.executemany(price_query, price_values)
             connection.commit()
-            print("Inserted all event data successfully.")
+            print("Inserted/Updated all event data successfully.")
     except Error as e:
-        print(f"Error inserting event data: {e}")
+        print(f"Error inserting/updating event data: {e}")
+
 
 def get_kalshi_info():
     connection = main.create_connection()
 
     if connection:
-        clear_kalshi_events(connection)
         events = fetch_kalshi_events()
         insert_event_data(connection, events)
         connection.close()
