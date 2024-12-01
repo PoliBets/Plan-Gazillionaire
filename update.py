@@ -4,7 +4,7 @@ import main
 from datetime import datetime
 from mysql.connector import Error
 from polymarketapi import getpolymarketinfo
-from update_database import close_past_events
+from close_expired_events import close_past_events
 from kalshiapi import get_kalshi_info
 
 def update():

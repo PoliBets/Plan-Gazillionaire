@@ -19,12 +19,12 @@ def process_response(response, political_events, bet_choices, prices, lock):
             if 'endDate' in event:
                 end_date = event['endDate'].split('T')
                 expiration_date = end_date[0]
-            if not main.bet_exists(connection, bet_id):
-                with lock:
-                    political_events.append((bet_id, title, expiration_date, "polymarket", "open", "no"))
-                print("political event added")
+            if main.bet_exists(connection, bet_id):
+                print("political event exists. Updating")
             else:
-                print("no new political event")
+                print("new political event, adding")
+            with lock:
+                political_events.append((bet_id, title, expiration_date, "polymarket", "open", "no"))
 
             for market in event['markets']:
                 market_id = market['id']
@@ -32,18 +32,28 @@ def process_response(response, political_events, bet_choices, prices, lock):
                 if 'volume' in market:
                     volume = market['volume']
                 
-                if not main.option_exists(connection, market_id):
-                    with lock:
-                        bet_choices.append((market_id, bet_id, question, "pending"))
-                    print("market added")
+                if main.option_exists(connection, market_id):
+                    print("market exists. updating")
                 else:
-                    print("no new market")
+                    print("new market, adding")
+                
+                with lock:
+                    bet_choices.append((market_id, bet_id, question, "pending"))
 
                 clean_outcomes = ast.literal_eval(market['outcomes'])
+                clean_outcomePrices = []
                 if 'outcomePrices' in market:
-                    clean_outcomePrices = ast.literal_eval(market['outcomePrices'])
+                    try:
+                        clean_outcomePrices = ast.literal_eval(market['outcomePrices'])
+                    except (ValueError, SyntaxError) as e:
+                        print(f"Error: {e}")
             
-                if not main.price_exists(connection, market_id) and clean_outcomePrices:
+                if main.price_exists(connection, market_id):
+                    print("existing price. updating")
+                else:
+                    print("new price. adding") 
+                
+                if len(clean_outcomePrices) >= 2:
                     with lock:
                         prices.append((
                             market_id, 
@@ -54,9 +64,7 @@ def process_response(response, political_events, bet_choices, prices, lock):
                             float(clean_outcomePrices[0])*100, 
                             float(clean_outcomePrices[1])*100
                         ))
-                    print("price added")
-                else:
-                    print("no new price")
+    
 
     # Close the connection when the work is done
     connection.close()
