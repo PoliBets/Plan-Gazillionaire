@@ -75,7 +75,7 @@ def populate_similar_event_options():
                     similarity = calculate_similarity(option_1[1], option_2[1])  # Compare names
                     print(f"Comparing: '{option_1[1]}' with '{option_2[1]}', similarity: {similarity}")  # Debugging
 
-                    if similarity >= 0.1:  # Threshold for similarity
+                    if similarity >= 0.3:  # Threshold for similarity
                         print(f"Inserting into similar_event_options: event_id={event_id}, option_id_1={option_1[0]}, option_id_2={option_2[0]}")  # Debugging
                         cursor.execute(
                             """
