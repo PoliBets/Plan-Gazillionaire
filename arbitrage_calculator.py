@@ -34,7 +34,7 @@ def create_connection():
             password=os.getenv('DB_PASS'),
             database=os.getenv('DB_NAME')
         )
-        print("Successfully connected to the database")
+        #print("Successfully connected to the database")
     except Error as e:
         print(f"Error connecting to MySQL: {e}")
     return connection
@@ -78,7 +78,7 @@ def get_similar_option_pairs():
     
     finally:
         connection.close()
-        print("Database connection closed.")
+        #print("Database connection closed.")
 
 # Unified function to fetch prices and adjust for Polymarket
 def get_prices_by_option_id(option_id: int) -> Optional[Tuple[float, float]]:
@@ -121,14 +121,14 @@ def get_prices_by_option_id(option_id: int) -> Optional[Tuple[float, float]]:
             print(f"Raw prices for option_id {option_id}: price_yes = {raw_price_yes}, price_no = {raw_price_no}, website = {website}")
 
             return raw_price_yes, raw_price_no
-    
+
     except mysql.connector.Error as e:
         print(f"Error fetching prices for option_id {option_id}: {e}")
         return None, None
     
     finally:
         connection.close()
-        print("Database connection closed.")
+        #print("Database connection closed.")
 
 # Fetch website details using the event_id from similar_events table
 def get_website_details(event_id: int, connection):
@@ -300,17 +300,26 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
     scenario_1_cost_with_fees = float(scenario_1_cost + fee_scenario_1_market1 + fee_scenario_1_market2)
     scenario_2_cost_with_fees = float(scenario_2_cost + fee_scenario_2_market1 + fee_scenario_2_market2)
 
-    # Print detailed costs and fees for Kalshi
-    if website_1.lower() == "kalshi":
-        print(f"Market 1 (Kalshi):")
-        print(f"  YES contracts cost: ${C1_yes * price_yes_market1 / 100:.2f}, Fees: ${fee_scenario_1_market1:.2f}")
-        print(f"  NO contracts cost: ${C1_no * price_no_market1 / 100:.2f}, Fees: ${fee_scenario_2_market1:.2f}")
+    # Print detailed costs and fees for both platforms
+    print_market_details(
+        market_name="Market 1",
+        website=website_1,
+        yes_cost=C1_yes * price_yes_market1 / 100,
+        no_cost=C1_no * price_no_market1 / 100,
+        yes_fees=fee_scenario_1_market1,
+        no_fees=fee_scenario_2_market1,
+    )
 
-    if website_2.lower() == "kalshi":
-        print(f"Market 2 (Kalshi):")
-        print(f"  YES contracts cost: ${C2_yes * price_yes_market2 / 100:.2f}, Fees: ${fee_scenario_2_market2:.2f}")
-        print(f"  NO contracts cost: ${C2_no * price_no_market2 / 100:.2f}, Fees: ${fee_scenario_1_market2:.2f}")
+    print_market_details(
+        market_name="Market 2",
+        website=website_2,
+        yes_cost=C2_yes * price_yes_market2 / 100,
+        no_cost=C2_no * price_no_market2 / 100,
+        yes_fees=fee_scenario_2_market2,
+        no_fees=fee_scenario_1_market2,
+    )
 
+    
     # Determine which scenario is profitable
     if scenario_1_cost_with_fees < 100 or scenario_2_cost_with_fees < 100:
         if scenario_1_cost_with_fees < scenario_2_cost_with_fees:
@@ -328,7 +337,33 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
         # Pass the bet sides to insert_arbitrage_opportunity()
         insert_arbitrage_opportunity(connection, market_bet_1, market_bet_2, profit, bet_type_1, bet_type_2)
     else:
-        print("No arbitrage opportunity found.")
+        print("\nNo arbitrage opportunity found.\n")
+
+# Print detailed costs and fees for both platforms
+def print_market_details(market_name, website, yes_cost, no_cost, yes_fees, no_fees):
+    """
+    Print market details including costs and fees. Fees are printed only for Kalshi.
+    
+    Args:
+        market_name (str): Market identifier (e.g., "Market 1" or "Market 2").
+        website (str): Platform name (e.g., "kalshi" or "polymarket").
+        yes_cost (float): Cost of YES contracts.
+        no_cost (float): Cost of NO contracts.
+        yes_fees (float): Fees for YES contracts (only for Kalshi).
+        no_fees (float): Fees for NO contracts (only for Kalshi).
+    """
+    print()
+    print(f"{market_name} ({website.capitalize()}):")
+    print(f"  YES contracts cost: ${yes_cost:.2f}", end="")
+    if website.lower() == "kalshi":
+        print(f", Fees: ${yes_fees:.2f}")
+    else:
+        print()
+    print(f"  NO contracts cost: ${no_cost:.2f}", end="")
+    if website.lower() == "kalshi":
+        print(f", Fees: ${no_fees:.2f}")
+    else:
+        print()
 
 
 def arbitrage_opportunity_exists(connection, bet_id1, bet_id2):
@@ -383,7 +418,7 @@ def get_similar_event_ids_with_websites():
     
     finally:
         connection.close()
-        print("Database connection closed.")
+        #print("Database connection closed.")
 
 
 # Main script
@@ -430,6 +465,7 @@ if __name__ == "__main__":
             continue
 
         # Calculate and display arbitrage opportunities for the given pair of option IDs
+        print()
         calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, option_name_2, website_1, website_2, connection)
 
     connection.close()  # Close the database connection
