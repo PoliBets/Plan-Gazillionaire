@@ -386,7 +386,7 @@ def get_similar_event_ids_with_websites():
 
 
 # Main script
-if __name__ == "__main__":
+def update_arbitrage():
     connection = create_connection()  # Establish the database connection
 
     if connection is None:
