@@ -242,6 +242,7 @@ def calculate_kalshi_fees(P, C):
     Calculate the trading fees using the formula:
     fees = round_up(0.07 * C * P * (1 - P))
     """
+    P = float(P)
     fees = 0.07 * C * P * (1 - P)
     # Round up to the nearest cent
     rounded_fees = math.ceil(fees * 100) / 100
@@ -292,12 +293,12 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
     fee_scenario_2_market2 = calculate_kalshi_fees(price_yes_market2 / 100, C2_yes) if website_2.lower() == "kalshi" else 0
 
     # Calculate total costs for both scenarios (including fees)
-    scenario_1_cost = (C1_yes * price_yes_market1 + C2_no * price_no_market2) / 100
-    scenario_2_cost = (C1_no * price_no_market1 + C2_yes * price_yes_market2) / 100
+    scenario_1_cost = float((C1_yes * price_yes_market1 + C2_no * price_no_market2) / 100)
+    scenario_2_cost = float((C1_no * price_no_market1 + C2_yes * price_yes_market2) / 100)
 
     # Add fees to the total costs for Kalshi
-    scenario_1_cost_with_fees = scenario_1_cost + fee_scenario_1_market1 + fee_scenario_1_market2
-    scenario_2_cost_with_fees = scenario_2_cost + fee_scenario_2_market1 + fee_scenario_2_market2
+    scenario_1_cost_with_fees = float(scenario_1_cost + fee_scenario_1_market1 + fee_scenario_1_market2)
+    scenario_2_cost_with_fees = float(scenario_2_cost + fee_scenario_2_market1 + fee_scenario_2_market2)
 
     # Print detailed costs and fees for Kalshi
     if website_1.lower() == "kalshi":
