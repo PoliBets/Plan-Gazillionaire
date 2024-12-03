@@ -196,11 +196,6 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
     if not bet_id_exists(bet_id_1, connection) or not bet_id_exists(bet_id_2, connection):
         print(f"Cannot insert arbitrage opportunity: One or both bet IDs ({bet_id_1}, {bet_id_2}) do not exist in bet_description table.")
         return
-    
-    # Check if the arbitrage opportunity already exists
-    if arbitrage_opportunity_exists(connection, bet_id_1, bet_id_2):
-        print(f"Arbitrage opportunity between bet_id1={bet_id_1} and bet_id2={bet_id_2} already exists. Skipping insertion.")
-        return
 
     # Insert into arbitrage_opportunities
     arbitrage_query = """
@@ -237,16 +232,27 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
         print(f"Attempted to insert arbitrage opportunity: bet_id1={bet_id_1}, bet_id2={bet_id_2}, profit={profit}")
 
 # Calculate Kalshi fees
-def calculate_kalshi_fees(P, C):
+def calculate_kalshi_total_cost(price):
     """
-    Calculate the trading fees using the formula:
-    fees = round_up(0.07 * C * P * (1 - P))
+    Calculate the total cost for Kalshi, including fees, keeping costs in the 0–100 scale.
+
+    Args:
+        price (float): The raw price of the contract as a percentage (0–100).
+
+    Returns:
+        float: Total cost (option price + fees) in the 0–100 scale.
     """
-    P = float(P)
-    fees = 0.07 * C * P * (1 - P)
-    # Round up to the nearest cent
-    rounded_fees = math.ceil(fees * 100) / 100
-    return rounded_fees
+    # Convert price to probability (0–1 scale) for fee calculation
+    p = float(price) / 100.0  # Example: 3.00 -> 0.03
+
+    # Calculate Kalshi fees using F = θ * p * (1 - p)
+    theta = 0.07
+    fee = theta * p * (1 - p) * 100  # Scale back to 0–100
+
+    # Total cost = Option price + Fee (both in 0–100 scale)
+    total_cost = price + fee
+
+    return total_cost
 
 # Calculate cross-market arbitrage for a pair of option IDs
 def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, option_name_2, website_1, website_2, connection, initial_amount=100):
@@ -260,25 +266,34 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
         return
 
     # Fetch raw prices for both option IDs
-    price_yes_market1, price_no_market1 = get_prices_by_option_id(option_id_1)
-    price_yes_market2, price_no_market2 = get_prices_by_option_id(option_id_2)
+    price_yes_market1, price_no_market1 = map(float, get_prices_by_option_id(option_id_1))
+    price_yes_market2, price_no_market2 = map(float, get_prices_by_option_id(option_id_2))
 
     if None in [price_yes_market1, price_no_market1, price_yes_market2, price_no_market2]:
         print(f"Prices not available for option IDs {option_id_1} or {option_id_2}. Skipping arbitrage calculation.")
         return
 
-    # Adjust prices based on website
-    if website_1.lower() == "polymarket":
-        price_yes_market1 *= 100
-        price_no_market1 *= 100
+    if website_1.lower() == "kalshi":
+        price_yes_market1 = float(price_yes_market1)
+        price_no_market1 = float(price_no_market1)
 
-    if website_2.lower() == "polymarket":
-        price_yes_market2 *= 100
-        price_no_market2 *= 100
+    if website_2.lower() == "kalshi":
+        price_yes_market2 = float(price_yes_market2)
+        price_no_market2 = float(price_no_market2)
 
     # Fixed number of contracts assuming $100 for each trade
-    def calculate_contracts(price):
-        return math.floor(initial_amount / (price / 100)) if price > 0 else 0
+    def calculate_contracts(price, initial_amount=100):
+        """
+        Fix the number of contracts for each trade to 1.
+
+        Args:
+            price (float): The price of the contract (0-100).
+            initial_amount (float): Ignored in this case since contracts are fixed.
+
+        Returns:
+            int: Fixed number of contracts (1).
+        """
+        return 1  # Always one contract per trade.
 
     # Calculate contracts for each side
     C1_yes = calculate_contracts(price_yes_market1)
@@ -286,37 +301,33 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
     C2_yes = calculate_contracts(price_yes_market2)
     C2_no = calculate_contracts(price_no_market2)
 
-    # Calculate fees only for Kalshi
-    fee_scenario_1_market1 = calculate_kalshi_fees(price_yes_market1 / 100, C1_yes) if website_1.lower() == "kalshi" else 0
-    fee_scenario_1_market2 = calculate_kalshi_fees(price_no_market2 / 100, C2_no) if website_2.lower() == "kalshi" else 0
-    fee_scenario_2_market1 = calculate_kalshi_fees(price_no_market1 / 100, C1_no) if website_1.lower() == "kalshi" else 0
-    fee_scenario_2_market2 = calculate_kalshi_fees(price_yes_market2 / 100, C2_yes) if website_2.lower() == "kalshi" else 0
+# Calculate Kalshi's total cost (option price + fees) directly
+    total_cost_yes_market1 = float(calculate_kalshi_total_cost(price_yes_market1)) if website_1.lower() == "kalshi" else float(price_yes_market1)
+    total_cost_no_market1 = float(calculate_kalshi_total_cost(price_no_market1)) if website_1.lower() == "kalshi" else float(price_no_market1)
 
-    # Calculate total costs for both scenarios (including fees)
-    scenario_1_cost = float((C1_yes * price_yes_market1 + C2_no * price_no_market2) / 100)
-    scenario_2_cost = float((C1_no * price_no_market1 + C2_yes * price_yes_market2) / 100)
+    total_cost_yes_market2 = float(calculate_kalshi_total_cost(price_yes_market2)) if website_2.lower() == "kalshi" else float(price_yes_market2)
+    total_cost_no_market2 = float(calculate_kalshi_total_cost(price_no_market2)) if website_2.lower() == "kalshi" else float(price_no_market2)
 
-    # Add fees to the total costs for Kalshi
-    scenario_1_cost_with_fees = float(scenario_1_cost + fee_scenario_1_market1 + fee_scenario_1_market2)
-    scenario_2_cost_with_fees = float(scenario_2_cost + fee_scenario_2_market1 + fee_scenario_2_market2)
+    scenario_1_cost_with_fees = float(total_cost_yes_market1) + float(total_cost_no_market2)
+    scenario_2_cost_with_fees = float(total_cost_no_market1) + float(total_cost_yes_market2)
 
     # Print detailed costs and fees for both platforms
     print_market_details(
         market_name="Market 1",
         website=website_1,
-        yes_cost=C1_yes * price_yes_market1 / 100,
-        no_cost=C1_no * price_no_market1 / 100,
-        yes_fees=fee_scenario_1_market1,
-        no_fees=fee_scenario_2_market1,
+        yes_cost=total_cost_yes_market1,
+        no_cost=total_cost_no_market1,
+        yes_fees=0,  # Fees are already included in total cost
+        no_fees=0,
     )
 
     print_market_details(
         market_name="Market 2",
         website=website_2,
-        yes_cost=C2_yes * price_yes_market2 / 100,
-        no_cost=C2_no * price_no_market2 / 100,
-        yes_fees=fee_scenario_2_market2,
-        no_fees=fee_scenario_1_market2,
+        yes_cost=total_cost_yes_market2,
+        no_cost=total_cost_no_market2,
+        yes_fees=0,  # Fees are already included in total cost
+        no_fees=0,
     )
 
     
@@ -364,23 +375,6 @@ def print_market_details(market_name, website, yes_cost, no_cost, yes_fees, no_f
         print(f", Fees: ${no_fees:.2f}")
     else:
         print()
-
-
-def arbitrage_opportunity_exists(connection, bet_id1, bet_id2):
-    query = """
-    SELECT COUNT(*)
-    FROM arbitrage_opportunities
-    WHERE (bet_id1 = %s AND bet_id2 = %s) OR (bet_id1 = %s AND bet_id2 = %s)
-    """
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(query, (bet_id1, bet_id2, bet_id2, bet_id1))
-            result = cursor.fetchone()
-            return result[0] > 0
-    except mysql.connector.Error as e:
-        print(f"Error checking for existing arbitrage opportunity: {e}")
-        return False
-
    
 # Helper - Fetch similar event IDs along with their websites
 def get_similar_event_ids_with_websites():
