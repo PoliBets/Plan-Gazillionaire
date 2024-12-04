@@ -178,7 +178,10 @@ def insert_event_data(connection, events):
         bet_description_values.append((bet_id, event_name, expiration_date, "kalshi", "open", "no"))
 
         for market in event.get("markets", []):
-            market_subtitle = market.get("subtitle", "Unknown Choice")
+            if market.get('subtitle') == "":
+                market_subtitle = market.get("yes_sub_title", "Unknown Choice")
+            else:
+                market_subtitle = market.get("subtitle", "Unknown Choice")
             volume = market.get("volume", 0)
             yes_price = market.get("yes_bid", 0)
             no_price = market.get("no_bid", 0)
@@ -215,5 +218,6 @@ def get_kalshi_info():
         connection.close()
     else:
         print("Failed to connect to the database.")
+
 
 
