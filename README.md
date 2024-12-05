@@ -9,7 +9,7 @@ For the frontend code, please visit our frontend github repo: https://github.com
 1. **Clone the Repository**
    Open your terminal or command prompt and run the following command:
    ```bash
-   git clone <https://github.com/phat-do-nyu/Plan-Gazillionaire>
+   git clone https://github.com/phat-do-nyu/Plan-Gazillionaire
    ```
 
 2. **Navigate to the Project Directory**
