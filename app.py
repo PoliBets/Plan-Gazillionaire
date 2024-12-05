@@ -11,6 +11,7 @@ from datetime import date
 from datetime import datetime
 from sqlalchemy.orm import aliased
 from globals import arbitrage_sides_lookup
+import uvicorn
 
 # Load environment variables from .env
 load_dotenv()
@@ -353,7 +354,6 @@ def delete_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
 
 # Main
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("app:app", host="0.0.0.0", port=9000, reload=True)
 
 # Additional SQLAlchemy Model for Price Table

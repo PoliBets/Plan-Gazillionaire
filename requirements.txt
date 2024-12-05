@@ -6,3 +6,4 @@ requests
 mysql-connector-python
 requests_cache
 tqdm
+uvicorn
