@@ -27,10 +27,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://plan-gazillionaire-frontend-872939346033.us-central1.run.app"],  # frontend's URL
+    allow_origins=[
+        "http://localhost:3000",  # Local frontend
+        "https://plan-gazillionaire-frontend-872939346033.us-central1.run.app"  # Deployed frontend
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Restrict to used methods only
+    allow_headers=["*"],  # Allow all headers
 )
 
 # SQLAlchemy Models
