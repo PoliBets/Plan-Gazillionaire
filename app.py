@@ -27,7 +27,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Update this to your frontend's URL
+    allow_origins=["https://plan-gazillionaire-frontend-872939346033.us-central1.run.app"],  # frontend's URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
