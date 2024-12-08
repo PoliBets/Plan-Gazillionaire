@@ -330,6 +330,13 @@ def calculate_cross_market_arbitrage(option_id_1, option_id_2, option_name_1, op
         no_fees=0,
     )
 
+    return {
+    "yes_cost_market1": total_cost_yes_market1,
+    "no_cost_market1": total_cost_no_market1,
+    "yes_cost_market2": total_cost_yes_market2,
+    "no_cost_market2": total_cost_no_market2,
+    }
+
     
     # Determine which scenario is profitable
     if scenario_1_cost_with_fees < 100 or scenario_2_cost_with_fees < 100:
