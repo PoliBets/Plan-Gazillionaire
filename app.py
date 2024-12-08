@@ -38,13 +38,14 @@ app.add_middleware(
 
 # SQLAlchemy Models
 class BetDescription(Base):
-    __tablename__ = 'bet_description'
+    __tablename__ = "bet_description"
     bet_id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    expiration_date = Column(Date, nullable=False)
-    website = Column(String(255))
-    status = Column(Enum('open', 'closed'))
-    is_arbitrage = Column(Enum('yes', 'no'))
+    name = Column(String, nullable=False)
+    expiration_date = Column(Date, nullable=True)
+    website = Column(String, nullable=True)
+    bet_url = Column(String, nullable=True)  # New field for bet URL
+    status = Column(Enum("open", "closed", name="status_enum"), nullable=True)
+    is_arbitrage = Column(Enum("yes", "no", name="arbitrage_enum"), nullable=True)
 
 class ArbitrageOpportunities(Base):
     __tablename__ = 'arbitrage_opportunities'
@@ -84,10 +85,11 @@ Base.metadata.create_all(bind=engine)
 # Pydantic Models (for validation and serialization)
 class BetDescriptionBase(BaseModel):
     name: str
-    expiration_date: date
-    website: Optional[str] = None
-    status: Optional[str] = None
-    is_arbitrage: Optional[str] = None
+    expiration_date: Optional[date]
+    website: Optional[str]
+    bet_url: Optional[str]  # New field for bet URL
+    status: Optional[str]
+    is_arbitrage: Optional[str]
 
 class BetDescriptionCreate(BetDescriptionBase):
     pass
@@ -96,7 +98,7 @@ class BetDescriptionResponse(BetDescriptionBase):
     bet_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # Dependency to get database session
 def get_db():
@@ -106,8 +108,7 @@ def get_db():
     finally:
         db.close()
 
-# CRUD Operations for Bet Description
-
+# CRUD Operations for BetDescription
 @app.get("/api/v1/bets", response_model=list[BetDescriptionResponse])
 def get_bets(db: Session = Depends(get_db)):
     bets = db.query(BetDescription).all()
@@ -126,6 +127,7 @@ def create_bet(bet: BetDescriptionCreate, db: Session = Depends(get_db)):
         name=bet.name,
         expiration_date=bet.expiration_date,
         website=bet.website,
+        bet_url=bet.bet_url,  # New field for bet URL
         status=bet.status,
         is_arbitrage=bet.is_arbitrage
     )
@@ -143,6 +145,7 @@ def update_bet(bet_id: int, bet: BetDescriptionCreate, db: Session = Depends(get
     db_bet.name = bet.name
     db_bet.expiration_date = bet.expiration_date
     db_bet.website = bet.website
+    db_bet.bet_url = bet.bet_url  # Update bet URL
     db_bet.status = bet.status
     db_bet.is_arbitrage = bet.is_arbitrage
     db.commit()

@@ -39,9 +39,10 @@ def create_bet_description_table(connection):
         name VARCHAR(255) NOT NULL,
         expiration_date DATE,
         website VARCHAR(255),
+        bet_url VARCHAR(255),  -- New column for the bet URL
         status ENUM('open', 'closed'),
         is_arbitrage ENUM('yes', 'no')
-        )
+    )
     """
     try:
         with connection.cursor() as cursor:
@@ -54,26 +55,40 @@ def create_bet_description_table(connection):
 
 # Add a bet to the bet_description table
 def add_bet_description(connection):
-    bet_id = input("Enter bet id: ")
+    bet_id = input("Enter bet ID: ")
     name = input("Enter bet name: ")
-    expiration_date = input("Enter expiration date (YYYY-MM-DD): ")  # Correct spelling here
+    expiration_date = input("Enter expiration date (YYYY-MM-DD): ")
     website = input("Enter website name: ")
+    bet_url = input("Enter bet URL: ")  # New input for the bet URL
     status = input("Enter bet status (open/closed): ")
     is_arbitrage = input("Enter if there were any arbitrage opportunities (yes/no): ")
 
     query = """
-    INSERT INTO bet_description (bet_id, name, expiration_date, website, status, is_arbitrage)
-    VALUES (%s, %s, %s, %s, %s, %s)
-    """  
-    values = (bet_id, name, expiration_date, website, status, is_arbitrage)
+    INSERT INTO bet_description (bet_id, name, expiration_date, website, bet_url, status, is_arbitrage)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """
+    values = (bet_id, name, expiration_date, website, bet_url, status, is_arbitrage)
 
     try:
         with connection.cursor() as cursor:
             cursor.execute(query, values)
             connection.commit()
-            print(f"Bet added with ID: {cursor.lastrowid}")
+            print(f"Bet added with ID: {bet_id}")
     except Error as e:
         print(f"Error adding bet: {e}")
+
+def add_bet_url_column(connection):
+    alter_table_query = """
+    ALTER TABLE bet_description
+    ADD COLUMN bet_url VARCHAR(255)
+    """
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(alter_table_query)
+            connection.commit()
+            print("Column 'bet_url' added successfully.")
+    except Error as e:
+        print(f"Error adding column: {e}")
 
 # view a bet from the bet_description table
 def view_bet_description(connection):
@@ -87,18 +102,19 @@ def view_bet_description(connection):
             else:
                 for bet in results:
                     print(f"\nID: {bet[0]}")
-                    print(f"name: {bet[1]}")
-                    print(f"expirition_date: {bet[2]}")
-                    print(f"website: {bet[3]}")
-                    print(f"status: ${bet[5]}")
-                    print(f"is_arbitrage: ${bet[6]}")
+                    print(f"Name: {bet[1]}")
+                    print(f"Expiration Date: {bet[2]}")
+                    print(f"Website: {bet[3]}")
+                    print(f"Bet URL: {bet[4]}")  # Display the bet URL
+                    print(f"Status: {bet[5]}")
+                    print(f"Is Arbitrage: {bet[6]}")
     except Error as e:
         print(f"Error retrieving bets: {e}")
 
 # update bets from bet_description table
 def update_bet_description(connection):
     bet_id = input("Enter the ID of the bet to update: ")
-    field = input("Enter the field to update (name/expirition_date/website/status/is_arbitrage): ")
+    field = input("Enter the field to update (name/expiration_date/website/bet_url/status/is_arbitrage): ")
     value = input("Enter the new value: ")
     
     query = f"UPDATE bet_description SET {field} = %s WHERE bet_id = %s"
@@ -132,6 +148,42 @@ def delete_bet_description(connection):
                 print("No bet found with that ID.")
     except Error as e:
         print(f"Error deleting bet: {e}")
+
+def check_table_schema(connection):
+    query = "DESCRIBE bet_description"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            schema = cursor.fetchall()
+            print("Table Schema:")
+            for column in schema:
+                print(column)
+    except Error as e:
+        print(f"Error checking schema: {e}")
+
+def manage_bet_description(connection):
+    print("\n1. Add Bet Description")
+    print("2. View Bet Descriptions")
+    print("3. Update Bet Description")
+    print("4. Delete Bet Description")
+    print("5. check url")
+    print("6. add url")
+    action = input("Enter your choice (1-4): ")
+
+    if action == '1':
+        add_bet_description(connection)
+    elif action == '2':
+        view_bet_description(connection)
+    elif action == '3':
+        update_bet_description(connection)
+    elif action == '4':
+        delete_bet_description(connection)
+    elif action == '5':
+        check_table_schema(connection)
+    elif action == '6':
+        add_bet_url_column(connection)
+    else:
+        print("Invalid choice. Please try again.")
 
 """ *** bet_choice table *** """
 
