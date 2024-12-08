@@ -297,6 +297,24 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         bet_side_1 = "Unknown"  # Fallback if no bet sides found
         bet_side_2 = "Unknown"  # Fallback if no bet sides found
 
+    # Fetch prices for bet_id1 and bet_id2
+    price1 = db.query(Price).filter(Price.bet_id == opportunity.bet_id1).order_by(Price.timestamp.desc()).first()
+    price2 = db.query(Price).filter(Price.bet_id == opportunity.bet_id2).order_by(Price.timestamp.desc()).first()
+
+    # Handle None prices
+    price_yes_1 = price1.yes_price if price1 else 0.0
+    price_no_2 = price2.no_price if price2 else 0.0
+
+    # Calculate bet amounts (total cost)
+    def calculate_kalshi_total_cost(price):
+        p = float(price) / 100.0  # Convert to 0–1 scale
+        theta = 0.07  # Fee rate
+        fee = theta * p * (1 - p) * 100  # Scale back to 0–100
+        return price + fee
+
+    bet_amount_1 = calculate_kalshi_total_cost(price_yes_1) if website_1.lower() == "kalshi" else price_yes_1
+    bet_amount_2 = calculate_kalshi_total_cost(price_no_2) if website_2.lower() == "kalshi" else price_no_2
+
     # Build the result dictionary
     result = {
         "arb_id": opportunity.arb_id,
@@ -311,10 +329,13 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         "bet_side_1": bet_side_1,
         "bet_side_2": bet_side_2,
         "profit": float(opportunity.profit) if opportunity.profit is not None else 0.0,
+        "bet_amount_1": round(bet_amount_1, 2),  # Include calculated bet amount 1
+        "bet_amount_2": round(bet_amount_2, 2),  # Include calculated bet amount 2
         "timestamp": opportunity.timestamp.isoformat() if opportunity.timestamp else "N/A",
     }
 
     return result
+
 
 @app.post("/api/v1/arbitrage", response_model=ArbitrageOpportunitiesDetailResponse)
 def create_arbitrage_opportunity(opportunity: ArbitrageOpportunitiesDetailResponse, db: Session = Depends(get_db)):
