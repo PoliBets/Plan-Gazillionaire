@@ -176,6 +176,10 @@ class ArbitrageOpportunitiesDetailResponse(BaseModel):
     bet_side_1: str
     bet_side_2: str
     profit: float
+    price_yes_1: Optional[float] = None  
+    price_no_2: Optional[float] = None 
+    bet_amount_1: Optional[float] = None  
+    bet_amount_2: Optional[float] = None  
     timestamp: Optional[str]
 
     class Config:
@@ -188,49 +192,67 @@ def get_all_arbitrage_opportunities(db: Session = Depends(get_db)):
     if not opportunities:
         raise HTTPException(status_code=404, detail="No arbitrage opportunities found")
 
-    # Create the response list
     results = []
     for opportunity in opportunities:
-        # Fetching bet descriptions
-        bet1 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id1).first()
-        bet2 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id2).first()
-
-        # Handling None values for bets
-        bet_description_1 = bet1.name if bet1 else "N/A"
-        bet_description_2 = bet2.name if bet2 else "N/A"
-        website_1 = bet1.website if bet1 else "N/A"
-        website_2 = bet2.website if bet2 else "N/A"
-
-        # Fetching event_id from similar_events table
+        # Step 1: Find event_id using bet_id1 and bet_id2
         similar_event = db.query(SimilarEvents).filter(
             (SimilarEvents.bet_id_1 == opportunity.bet_id1) &
             (SimilarEvents.bet_id_2 == opportunity.bet_id2)
         ).first()
 
-        # Use event_id to fetch data from similar_event_options table
-        if similar_event:
-            similar_event_options = db.query(SimilarEventOptions).filter(
-                SimilarEventOptions.event_id == similar_event.event_id
-            ).first()
-        else:
-            similar_event_options = None
+        if not similar_event:
+            print(f"DEBUG: No similar event found for bet_id1 = {opportunity.bet_id1}, bet_id2 = {opportunity.bet_id2}")
+            continue  # Skip this opportunity if no similar event exists
 
-        # Handling None values for similar_event_options
-        option_name_1 = similar_event_options.option_name_1 if similar_event_options else "N/A"
-        option_name_2 = similar_event_options.option_name_2 if similar_event_options else "N/A"
+        event_id = similar_event.event_id
 
-        # Fetching bet sides from the arbitrage_bet_sides table
+        # Step 2: Fetch option_id_1 and option_id_2 from similar_event_options
+        similar_event_options = db.query(SimilarEventOptions).filter(SimilarEventOptions.event_id == event_id).first()
+
+        if not similar_event_options:
+            print(f"DEBUG: No similar event options found for event_id = {event_id}")
+            continue  # Skip this opportunity if no options exist
+
+        option_id_1 = similar_event_options.option_id_1
+        option_id_2 = similar_event_options.option_id_2
+        option_name_1 = similar_event_options.option_name_1
+        option_name_2 = similar_event_options.option_name_2
+
+        # Step 3: Fetch prices using option_id_1 and option_id_2
+        price1 = db.query(Price).filter(Price.option_id == option_id_1).order_by(Price.timestamp.desc()).first()
+        price2 = db.query(Price).filter(Price.option_id == option_id_2).order_by(Price.timestamp.desc()).first()
+
+        price_yes_1 = price1.yes_price if price1 else 0.0
+        price_no_2 = price2.no_price if price2 else 0.0
+
+        # Step 4: Fetch bet descriptions
+        bet1 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id1).first()
+        bet2 = db.query(BetDescription).filter(BetDescription.bet_id == opportunity.bet_id2).first()
+
+        bet_description_1 = bet1.name if bet1 else "N/A"
+        bet_description_2 = bet2.name if bet2 else "N/A"
+        website_1 = bet1.website if bet1 else "N/A"
+        website_2 = bet2.website if bet2 else "N/A"
+
+        # Step 5: Calculate bet amounts
+        def calculate_kalshi_total_cost(price):
+            if price is None:
+                return 0.0
+            price = float(price)  # Convert decimal.Decimal to float
+            p = price / 100.0
+            theta = 0.07
+            fee = theta * p * (1 - p) * 100
+            return price + fee
+
+        bet_amount_1 = calculate_kalshi_total_cost(price_yes_1) if website_1.lower() == "kalshi" else price_yes_1
+        bet_amount_2 = calculate_kalshi_total_cost(price_no_2) if website_2.lower() == "kalshi" else price_no_2
+
+        # Step 6: Fetch bet sides
         bet_sides = db.query(BetSides).filter(BetSides.arb_id == opportunity.arb_id).first()
+        bet_side_1 = bet_sides.bet_side_1 if bet_sides else "Unknown"
+        bet_side_2 = bet_sides.bet_side_2 if bet_sides else "Unknown"
 
-        # Handling None values for bet_sides
-        if bet_sides:
-            bet_side_1 = bet_sides.bet_side_1
-            bet_side_2 = bet_sides.bet_side_2
-        else:
-            bet_side_1 = "Unknown"  # Fallback if no bet sides found
-            bet_side_2 = "Unknown"  # Fallback if no bet sides found
-
-        # Building the result dictionary
+        # Step 7: Build result dictionary
         result = {
             "arb_id": opportunity.arb_id,
             "bet_id1": opportunity.bet_id1,
@@ -244,6 +266,10 @@ def get_all_arbitrage_opportunities(db: Session = Depends(get_db)):
             "bet_side_1": bet_side_1,
             "bet_side_2": bet_side_2,
             "profit": float(opportunity.profit) if opportunity.profit is not None else 0.0,
+            "price_yes_1": round(price_yes_1, 2),
+            "price_no_2": round(price_no_2, 2),
+            "bet_amount_1": round(bet_amount_1, 2),
+            "bet_amount_2": round(bet_amount_2, 2),
             "timestamp": opportunity.timestamp.isoformat() if opportunity.timestamp else "N/A",
         }
         results.append(result)
@@ -298,8 +324,18 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         bet_side_2 = "Unknown"  # Fallback if no bet sides found
 
     # Fetch prices for bet_id1 and bet_id2
-    price1 = db.query(Price).filter(Price.bet_id == opportunity.bet_id1).order_by(Price.timestamp.desc()).first()
-    price2 = db.query(Price).filter(Price.bet_id == opportunity.bet_id2).order_by(Price.timestamp.desc()).first()
+    price1 = db.query(Price).filter(Price.option_id == opportunity.bet_id1).order_by(Price.timestamp.desc()).first()
+    price2 = db.query(Price).filter(Price.option_id == opportunity.bet_id2).order_by(Price.timestamp.desc()).first()
+
+    if not price1:
+        print(f"DEBUG: No price found for bet_id1 = {opportunity.bet_id1}")
+    else:
+        print(f"DEBUG: price1.yes_price = {price1.yes_price}, price1.no_price = {price1.no_price}")
+
+    if not price2:
+        print(f"DEBUG: No price found for bet_id2 = {opportunity.bet_id2}")
+    else:
+        print(f"DEBUG: price2.yes_price = {price2.yes_price}, price2.no_price = {price2.no_price}")
 
     # Handle None prices
     price_yes_1 = price1.yes_price if price1 else 0.0
@@ -312,8 +348,11 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         fee = theta * p * (1 - p) * 100  # Scale back to 0–100
         return price + fee
 
+    print(f"Calculating bet amounts for websites: {website_1} and {website_2}")
+    print(f"Prices: price_yes_1={price_yes_1}, price_no_2={price_no_2}")
     bet_amount_1 = calculate_kalshi_total_cost(price_yes_1) if website_1.lower() == "kalshi" else price_yes_1
     bet_amount_2 = calculate_kalshi_total_cost(price_no_2) if website_2.lower() == "kalshi" else price_no_2
+    print(f"Bet amounts calculated: bet_amount_1={bet_amount_1}, bet_amount_2={bet_amount_2}")
 
     # Build the result dictionary
     result = {
@@ -329,10 +368,11 @@ def get_arbitrage_opportunity(arb_id: int, db: Session = Depends(get_db)):
         "bet_side_1": bet_side_1,
         "bet_side_2": bet_side_2,
         "profit": float(opportunity.profit) if opportunity.profit is not None else 0.0,
-        "bet_amount_1": round(bet_amount_1, 2),  # Include calculated bet amount 1
-        "bet_amount_2": round(bet_amount_2, 2),  # Include calculated bet amount 2
+        "bet_amount_1": round(bet_amount_1, 2),
+        "bet_amount_2": round(bet_amount_2, 2),
         "timestamp": opportunity.timestamp.isoformat() if opportunity.timestamp else "N/A",
     }
+    print(f"API result: {result}")
 
     return result
 
