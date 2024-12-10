@@ -434,6 +434,101 @@ def create_arbitrage_opportunities_table(connection):
     except Error as e:
         print(f"Error creating table: {e}")
 
+def add_columns_to_arbitrage_table(connection):
+    columns_to_add = [
+        ("bet_description_1", "VARCHAR(255)"),
+        ("bet_description_2", "VARCHAR(255)"),
+        ("website_1", "VARCHAR(255)"),
+        ("website_2", "VARCHAR(255)"),
+        ("bet_side_1", "VARCHAR(10)"),
+        ("bet_side_2", "VARCHAR(10)"),
+        ("price_yes_1", "DECIMAL(10, 2)"),
+        ("price_no_2", "DECIMAL(10, 2)"),
+        ("bet_amount_1", "DECIMAL(10, 2)"),
+        ("bet_amount_2", "DECIMAL(10, 2)")
+    ]
+
+    try:
+        with connection.cursor() as cursor:
+            for column_name, column_type in columns_to_add:
+                # Check if the column exists
+                cursor.execute(f"""
+                    SELECT COUNT(*)
+                    FROM information_schema.columns 
+                    WHERE table_name = 'arbitrage_opportunities'
+                    AND column_name = '{column_name}';
+                """)
+                exists = cursor.fetchone()[0]
+
+                if not exists:
+                    # Add the column if it does not exist
+                    alter_query = f"ALTER TABLE arbitrage_opportunities ADD COLUMN {column_name} {column_type};"
+                    cursor.execute(alter_query)
+
+            connection.commit()
+            print("Missing columns added successfully.")
+    except Exception as e:
+        print(f"Error adding columns: {e}")
+
+def populate_arbitrage_opportunities(connection):
+    try:
+        # SQL Query to Fetch Required Data
+        query = """
+        SELECT 
+            ao.arb_id,
+            bd1.name AS bet_description_1,
+            bd2.name AS bet_description_2,
+            bd1.website AS website_1,
+            bd2.website AS website_2,
+            abs.bet_side_1,
+            abs.bet_side_2
+        FROM 
+            arbitrage_opportunities ao
+        LEFT JOIN 
+            bet_description bd1 ON ao.bet_id1 = bd1.bet_id
+        LEFT JOIN 
+            bet_description bd2 ON ao.bet_id2 = bd2.bet_id
+        LEFT JOIN 
+            arbitrage_bet_sides abs ON ao.arb_id = abs.arb_id;
+        """
+
+        # Execute the query and fetch results
+        with connection.cursor(dictionary=True) as cursor:
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            # Update the arbitrage_opportunities table with fetched data
+            for row in results:
+                update_query = """
+                UPDATE arbitrage_opportunities
+                SET 
+                    bet_description_1 = %s,
+                    bet_description_2 = %s,
+                    website_1 = %s,
+                    website_2 = %s,
+                    bet_side_1 = %s,
+                    bet_side_2 = %s
+                WHERE 
+                    arb_id = %s;
+                """
+                update_values = (
+                    row['bet_description_1'],
+                    row['bet_description_2'],
+                    row['website_1'],
+                    row['website_2'],
+                    row['bet_side_1'],
+                    row['bet_side_2'],
+                    row['arb_id']
+                )
+                cursor.execute(update_query, update_values)
+            
+            # Commit the changes to the database
+            connection.commit()
+            print("arbitrage_opportunities table updated successfully!")
+
+    except Exception as e:
+        print(f"Error populating arbitrage_opportunities table: {e}")
+
 def add_arbitrage_opportunity(connection):
     bet_id_1 = input("Enter the first bet ID (bet_id_1): ")
     bet_id_2 = input("Enter the second bet ID (bet_id_2): ")
@@ -938,9 +1033,11 @@ def manage_arbitrage_opportunities(connection):
         print("2. View Arbitrage Opportunities")
         print("3. Update an Arbitrage Opportunity")
         print("4. Delete an Arbitrage Opportunity")
-        print("5. Go Back to Main Menu")
+        print("5. Add missing columns")
+        print("6. Populate arbitrage opportunites")
+        print("7. Go Back to Main Menu")
         
-        choice = input("Enter your choice (1-5): ")
+        choice = input("Enter your choice (1-7): ")
 
         if choice == '1':
             add_arbitrage_opportunity(connection)
@@ -951,6 +1048,10 @@ def manage_arbitrage_opportunities(connection):
         elif choice == '4':
             delete_arbitrage_opportunity(connection)
         elif choice == '5':
+            add_columns_to_arbitrage_table(connection)
+        elif choice == '6':
+            populate_arbitrage_opportunities(connection)
+        elif choice == '7':
             break
         else:
             print("Invalid choice. Please try again.")

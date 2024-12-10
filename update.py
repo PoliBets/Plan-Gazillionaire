@@ -10,11 +10,11 @@ from arbitrage_calculator import update_arbitrage
 
 def update():
     #update polymarket info
-    getpolymarketinfo()
+    #getpolymarketinfo()
     #update kalshi info here
-    get_kalshi_info()
+    #get_kalshi_info()
     #goes through the database and if the expiration date is past, change to close
-    close_past_events()
+    #close_past_events()
     #calculate arbitrage opportunities
     update_arbitrage()
 

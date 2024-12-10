@@ -182,28 +182,79 @@ def bet_id_exists(bet_id: int, connection) -> bool:
         return False
 
 # Insert arbitrage opportunity into the database
-def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profit: float, bet_side_1: str, bet_side_2: str):
+def insert_arbitrage_opportunity(
+    connection, 
+    option_id_1: int, 
+    option_id_2: int, 
+    profit: float, 
+    bet_side_1: str, 
+    bet_side_2: str
+):
+    """
+    Inserts arbitrage opportunities into the arbitrage_opportunities table.
+    Fetches and stores option IDs, option names, and bet sides.
+    """
     # Fetch the corresponding bet IDs for the given option IDs
-    bet_id_1 = get_bet_id_from_option_id(bet_id_1, connection)
-    bet_id_2 = get_bet_id_from_option_id(bet_id_2, connection)
+    bet_id_1 = get_bet_id_from_option_id(option_id_1, connection)
+    bet_id_2 = get_bet_id_from_option_id(option_id_2, connection)
 
     # Check if both bet IDs were found
     if bet_id_1 is None or bet_id_2 is None:
-        print(f"Cannot insert arbitrage opportunity: One or both option IDs ({bet_id_1}, {bet_id_2}) could not be mapped to bet IDs.")
+        print(f"Cannot insert arbitrage opportunity: One or both option IDs ({option_id_1}, {option_id_2}) could not be mapped to bet IDs.")
         return
 
-    # Check if bet_id_1 and bet_id_2 exist in the referenced table
+    # Fetch the option names for the given option IDs
+    query = """
+    SELECT option_name_1, option_name_2 
+    FROM similar_event_options 
+    WHERE option_id_1 = %s AND option_id_2 = %s
+    """
+    try:
+        with connection.cursor(dictionary=True) as cursor:
+            cursor.execute(query, (option_id_1, option_id_2))
+            event_details = cursor.fetchone()
+
+        if not event_details:
+            print(f"No option names found for option pair ({option_id_1}, {option_id_2}). Skipping insertion...")
+            return
+
+        option_name_1 = event_details["option_name_1"]
+        option_name_2 = event_details["option_name_2"]
+
+    except Error as e:
+        print(f"Error fetching option names for ({option_id_1}, {option_id_2}): {e}")
+        return
+
+    # Check if bet IDs exist in the referenced table
     if not bet_id_exists(bet_id_1, connection) or not bet_id_exists(bet_id_2, connection):
         print(f"Cannot insert arbitrage opportunity: One or both bet IDs ({bet_id_1}, {bet_id_2}) do not exist in bet_description table.")
         return
 
-    # Insert into arbitrage_opportunities
+    # Insert into arbitrage_opportunities table
     arbitrage_query = """
-    INSERT INTO arbitrage_opportunities (bet_id1, bet_id2, timestamp, profit)
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO arbitrage_opportunities (
+        bet_id1, 
+        bet_id2, 
+        option_id_1, 
+        option_id_2, 
+        option_name_1, 
+        option_name_2, 
+        timestamp, 
+        profit
+    )
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
     timestamp = datetime.now()
-    arbitrage_values = (bet_id_1, bet_id_2, timestamp, profit)
+    arbitrage_values = (
+        bet_id_1, 
+        bet_id_2, 
+        option_id_1, 
+        option_id_2, 
+        option_name_1, 
+        option_name_2, 
+        timestamp, 
+        profit
+    )
 
     try:
         with connection.cursor() as cursor:
@@ -225,11 +276,11 @@ def insert_arbitrage_opportunity(connection, bet_id_1: int, bet_id_2: int, profi
             # Optionally update the in-memory lookup as well
             add_to_arbitrage_sides_lookup(arb_id, bet_side_1, bet_side_2)
 
-            print(f"Inserted arbitrage sides for arb_id {arb_id}")
+            print(f"Inserted arbitrage opportunity for arb_id {arb_id}")
     except Error as e:
         print(f"Error adding arbitrage opportunity: {e}")
     finally:
-        print(f"Attempted to insert arbitrage opportunity: bet_id1={bet_id_1}, bet_id2={bet_id_2}, profit={profit}")
+        print(f"Attempted to insert arbitrage opportunity: option_id_1={option_id_1}, option_id_2={option_id_2}, profit={profit}")
 
 # Calculate Kalshi fees
 def calculate_kalshi_total_cost(price):
